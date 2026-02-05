@@ -1,0 +1,33 @@
+{
+  "name": "pulze",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PULZE - WhatsApp Wellness Coach Platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:bot": "pnpm --filter @pulze/bot dev",
+    "dev:web": "pnpm --filter @pulze/web dev",
+    "dev:backoffice": "pnpm --filter @pulze/backoffice dev",
+    "build:bot": "pnpm --filter @pulze/bot build",
+    "build:web": "pnpm --filter @pulze/web build",
+    "build:backoffice": "pnpm --filter @pulze/backoffice build",
+    "deploy:railway": "./scripts/deploy-railway.sh",
+    "deploy:vercel": "./scripts/deploy-vercel.sh",
+    "db:migrate": "pnpm --filter @pulze/database migrate",
+    "db:studio": "pnpm --filter @pulze/database studio"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "typescript": "^5.3.3",
+    "prettier": "^3.2.4",
+    "eslint": "^8.56.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0"
+}
