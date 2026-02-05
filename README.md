@@ -76,7 +76,8 @@ pnpm deploy:vercel
 - ✅ Check-in diario automatizado
 - ✅ Recomendaciones personalizadas
 - ✅ Resumen semanal
-- ✅ Procesamiento de voz
+- ✅ Procesamiento de notas de voz (BuilderBot nativo)
+- ✅ Conversación libre con IA
 - ✅ Sistema de memoria contextual
 
 ### WebApp (Usuarios)

@@ -75,16 +75,6 @@ Mantén un tono cercano, motivador pero realista. Máximo 200 palabras.`;
 
     return response.choices[0]?.message?.content || 'Lo siento, no pude procesar tu mensaje.';
   }
-
-  async transcribeVoice(audioBuffer: Buffer): Promise<string> {
-    const response = await openai.audio.transcriptions.create({
-      file: new File([audioBuffer], 'audio.ogg', { type: 'audio/ogg' }),
-      model: 'whisper-1',
-      language: 'es',
-    });
-
-    return response.text;
-  }
 }
 
 export const aiService = new AIService();

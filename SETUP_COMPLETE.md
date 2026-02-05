@@ -51,9 +51,10 @@ pulze/
 
 ### 🎯 **Motor de IA**
 - ✅ OpenAI GPT-4 Turbo para recomendaciones
-- ✅ Whisper para transcripción de voz
 - ✅ Sistema de contexto personalizado
+- ✅ Conversación libre con IA
 - ✅ Memoria de usuario (objetivos, restricciones)
+- ✅ BuilderBot maneja notas de voz automáticamente
 
 ### 🚢 **Deploy & DevOps**
 - ✅ Scripts automatizados:
@@ -191,7 +192,8 @@ vercel --prod
 - ✅ Recomendaciones con IA
 - ✅ Sistema de ayuda
 - ✅ Memoria de usuario
-- ✅ Procesamiento de voz (ready, falta activar)
+- ✅ Conversación libre con IA
+- ✅ Notas de voz (BuilderBot las transcribe automáticamente)
 
 ### WebApp
 - ✅ Landing page
