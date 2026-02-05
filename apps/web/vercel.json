@@ -3,5 +3,10 @@
   "outputDirectory": ".next",
   "devCommand": "pnpm dev",
   "installCommand": "pnpm install",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "functions": {
+    "**/*": {
+      "runtime": "nodejs20.x"
+    }
+  }
 }

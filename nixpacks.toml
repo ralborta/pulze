@@ -1,0 +1,12 @@
+# Nixpacks plan for Railway
+[phases.setup]
+nixPkgs = ["nodejs-20_x", "pnpm"]
+
+[phases.install]
+cmds = ["pnpm install"]
+
+[phases.build]
+cmds = ["pnpm build:bot"]
+
+[start]
+cmd = "cd apps/bot && pnpm start"

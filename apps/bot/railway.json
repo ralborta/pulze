@@ -8,6 +8,12 @@ deploy:
   startCommand: cd apps/bot && pnpm start
   restartPolicyType: ON_FAILURE
   restartPolicyMaxRetries: 10
+  nixpacksVersion: 1.21.0
+  nixpacksPlan:
+    phases:
+      install:
+        nixPkgs:
+          - nodejs-20_x
 healthcheck:
   path: /health
   intervalSeconds: 30
