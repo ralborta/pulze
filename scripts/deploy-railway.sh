@@ -19,9 +19,8 @@ if [ ! -f ".railway" ]; then
     railway link
 fi
 
-# Deploy
-echo "📦 Building and deploying..."
-cd apps/bot
+# Deploy desde la raíz (Dockerfile y pnpm-lock.yaml están aquí)
+echo "📦 Building and deploying from repo root..."
 railway up
 
 echo "✅ Deployment complete!"

@@ -1,0 +1,28 @@
+#!/bin/bash
+# Ayuda para configurar GitHub Secrets y que el Action despliegue a Railway en cada push.
+# Ejecutar desde la raíz del repo: ./scripts/setup-railway-github-secrets.sh
+
+echo "=============================================="
+echo "  Railway → GitHub Secrets (deploy en cada push)"
+echo "=============================================="
+echo ""
+echo "1. RAILWAY_TOKEN (project token)"
+echo "   • Railway → Tu proyecto → Settings → Tokens"
+echo "   • Create Project Token (no uses el token de cuenta)"
+echo "   • Copiá el valor y agregalo en GitHub: Settings → Secrets → Actions → RAILWAY_TOKEN"
+echo ""
+echo "2. RAILWAY_PROJECT_ID"
+echo "   • En la URL del proyecto: https://railway.app/project/ESTE_ES_EL_ID/..."
+echo "   • O: Project Settings → lo ves en la página"
+echo "   • GitHub Secrets → RAILWAY_PROJECT_ID"
+echo ""
+echo "3. RAILWAY_SERVICE_ID"
+echo "   • Entrá al servicio del BOT en Railway"
+echo "   • Settings → Variables → 'Railway provided variables' o en la URL del servicio"
+echo "   • GitHub Secrets → RAILWAY_SERVICE_ID"
+echo ""
+echo "Cuando los 3 secrets estén en GitHub, cada push a master disparará el deploy."
+echo ""
+echo "Alternativa (más fácil): en Railway conectá el repo (Settings → Source → Connect Repo)"
+echo "y elegí ralborta/pulze, rama master. Así no necesitás estos secrets."
+echo ""
