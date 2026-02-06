@@ -1,11 +1,20 @@
 import OpenAI from 'openai';
 import { userService } from './user.service';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+function getOpenAI(): OpenAI {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key?.trim()) {
+    throw new Error('OPENAI_API_KEY no está configurada. Agregala en Railway → Variables.');
+  }
+  return new OpenAI({ apiKey: key });
+}
 
 class AIService {
+  private _openai: OpenAI | null = null;
+  private get openai() {
+    if (!this._openai) this._openai = getOpenAI();
+    return this._openai;
+  }
   async generateDailyRecommendation(data: {
     sleep: number;
     energy: number;
@@ -35,7 +44,7 @@ Genera una recomendación diaria:
 
 Mantén un tono cercano, motivador pero realista. Máximo 200 palabras.`;
 
-    const response = await openai.chat.completions.create({
+    const response = await this.openai.chat.completions.create({
       model: 'gpt-4-turbo-preview',
       messages: [
         {
@@ -57,7 +66,7 @@ Mantén un tono cercano, motivador pero realista. Máximo 200 palabras.`;
   async generateResponse(userMessage: string, phone: string) {
     const user = await userService.getUser(phone);
     
-    const response = await openai.chat.completions.create({
+    const response = await this.openai.chat.completions.create({
       model: 'gpt-4-turbo-preview',
       messages: [
         {
