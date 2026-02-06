@@ -2,7 +2,7 @@
   "name": "@pulze/bot",
   "version": "1.0.0",
   "private": true,
-  "description": "PULZE WhatsApp Bot + Backend API",
+  "description": "PULZE WhatsApp Bot + Backend API (deploy trigger)",
   "main": "dist/app.js",
   "scripts": {
     "dev": "tsx watch src/app.ts",
