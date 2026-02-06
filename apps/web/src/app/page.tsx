@@ -72,9 +72,9 @@ function FeatureCard({
   title, 
   description 
 }: { 
-  icon: React.ReactNode
-  title: string
-  description: string 
+  icon: React.ReactNode;
+  title: string;
+  description: string;
 }) {
   return (
     <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
