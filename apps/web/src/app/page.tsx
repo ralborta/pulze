@@ -24,16 +24,19 @@ export default function HomePage() {
           
           <div className="space-y-3">
             <FeatureCard
+              href="/check-ins"
               icon={<Calendar className="w-6 h-6" />}
               title="Check-ins diarios"
               description="30 segundos para mejorar tu día"
             />
             <FeatureCard
+              href="/dashboard"
               icon={<Target className="w-6 h-6" />}
               title="Recomendaciones personalizadas"
               description="Basadas en tu progreso real"
             />
             <FeatureCard
+              href="/dashboard"
               icon={<TrendingUp className="w-6 h-6" />}
               title="Seguimiento de progreso"
               description="Visualiza tu evolución"
@@ -67,22 +70,33 @@ export default function HomePage() {
   )
 }
 
-function FeatureCard({ 
-  icon, 
-  title, 
-  description 
-}: { 
+function FeatureCard({
+  href,
+  icon,
+  title,
+  description,
+}: {
+  href?: string;
   icon: React.ReactNode;
   title: string;
   description: string;
 }) {
-  return (
-    <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+  const content = (
+    <>
       <div className="text-green-500 mt-1">{icon}</div>
       <div>
         <h3 className="font-semibold text-gray-900">{title}</h3>
         <p className="text-sm text-gray-600">{description}</p>
       </div>
-    </div>
+    </>
   )
+  const className = 'flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition'
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {content}
+      </Link>
+    )
+  }
+  return <div className={className}>{content}</div>
 }
