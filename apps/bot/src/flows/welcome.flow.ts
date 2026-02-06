@@ -48,7 +48,7 @@ export const welcomeFlow = addKeyword(EVENTS.WELCOME)
     }
   )
   .addAnswer(
-    null,
+    '',
     { capture: true },
     async (ctx, { flowDynamic, state }) => {
       const restrictions = ctx.body.toLowerCase() === 'ninguna' ? null : ctx.body;
