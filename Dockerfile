@@ -1,8 +1,8 @@
 # Use Node 20 Alpine (lightweight, menos memoria en build que Nixpacks+apt)
 FROM node:20-alpine
 
-# Dependencias para módulos nativos (ej. Baileys / sharp)
-RUN apk add --no-cache libatomic
+# Dependencias: libatomic (nativos), git (pnpm usa git para libsignal-node/baileys)
+RUN apk add --no-cache libatomic git
 
 # Install pnpm
 RUN npm install -g pnpm@8.15.0
