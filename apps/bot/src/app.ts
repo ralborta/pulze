@@ -25,9 +25,10 @@ async function main() {
 
   app.use('/api', apiRouter);
 
-  // Servidor HTTP primero para que Railway pase el healthcheck
-  app.listen(PORT, () => {
-    logger.info(`🚀 PULZE Bot + API running on port ${PORT}`);
+  // Escuchar en 0.0.0.0 para que el healthcheck desde fuera del contenedor llegue
+  const port = Number(PORT) || 3001;
+  app.listen(port, '0.0.0.0', () => {
+    logger.info(`🚀 PULZE Bot + API running on port ${port}`);
   });
 
   try {
