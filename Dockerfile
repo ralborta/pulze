@@ -10,13 +10,13 @@ RUN npm install -g pnpm@8.15.0
 # Set working directory
 WORKDIR /app
 
-# Copy package files (incl. lockfile para --frozen-lockfile)
+# Copy package files
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages ./packages
 COPY apps/bot ./apps/bot
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+# Install (sin --frozen-lockfile para evitar fallo si caché de Railway no incluyó el lockfile)
+RUN pnpm install
 
 # Build the bot
 RUN pnpm run build:bot
