@@ -32,10 +32,16 @@ jobs:
       - name: Build backoffice
         run: pnpm build:backoffice
 
+  # Requiere en GitHub Secrets: RAILWAY_TOKEN (project token), RAILWAY_PROJECT_ID, RAILWAY_SERVICE_ID
+  # O conectar el repo en Railway (Settings → Source → Connect Repo) para deploy automático al hacer push
   deploy-railway:
     needs: test
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+      RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
     steps:
       - uses: actions/checkout@v4
       
@@ -43,9 +49,7 @@ jobs:
         run: npm i -g @railway/cli
       
       - name: Deploy to Railway
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service bot
+        run: railway up --service $RAILWAY_SERVICE_ID --detach
 
   deploy-vercel:
     needs: test
