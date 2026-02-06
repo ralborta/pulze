@@ -10,12 +10,12 @@ RUN npm install -g pnpm@8.15.0
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+# Copy package files (no exigimos lockfile: Railway a veces no lo incluye en el contexto)
+COPY package.json pnpm-workspace.yaml ./
 COPY packages ./packages
 COPY apps/bot ./apps/bot
 
-# Install (sin --frozen-lockfile para evitar fallo si caché de Railway no incluyó el lockfile)
+# Install sin --frozen-lockfile (lockfile puede no estar si Root Directory no es la raíz)
 RUN pnpm install
 
 # Build the bot
