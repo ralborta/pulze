@@ -2,30 +2,35 @@
 
 import { BookOpen, Dumbbell, Salad, Brain, Heart, Sparkles } from 'lucide-react'
 
-const contentCategories = [
+const contentCategories: Array<{
+  icon: React.ReactNode
+  title: string
+  count: string
+  color: 'orange' | 'green' | 'purple' | 'pink'
+}> = [
   {
     icon: <Dumbbell className="w-6 h-6 text-orange-400" />,
     title: 'Entrenamiento',
     count: '12 guías',
-    color: 'orange',
+    color: 'orange' as const,
   },
   {
     icon: <Salad className="w-6 h-6 text-green-400" />,
     title: 'Nutrición',
     count: '15 tips',
-    color: 'green',
+    color: 'green' as const,
   },
   {
     icon: <Brain className="w-6 h-6 text-purple-400" />,
     title: 'Mentalidad',
     count: '8 artículos',
-    color: 'purple',
+    color: 'purple' as const,
   },
   {
     icon: <Heart className="w-6 h-6 text-pink-400" />,
     title: 'Bienestar',
     count: '10 recursos',
-    color: 'pink',
+    color: 'pink' as const,
   },
 ]
 
