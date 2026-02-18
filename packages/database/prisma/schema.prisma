@@ -28,6 +28,10 @@ model User {
   preferences       UserPreferences?
   conversations     Conversation[]
   stats             UserStats?
+  context           UserContext?
+  nutritionLogs     NutritionLog[]
+  trainingLogs      TrainingLog[]
+  proactiveMessages ProactiveMessage[]
   
   @@index([phone])
   @@index([isActive])
@@ -155,4 +159,107 @@ model UserStats {
   
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+}
+
+model UserContext {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Memoria estructurada (JSON)
+  nutritionMemory     Json?    // Preferencias, consultas, patrones alimenticios
+  trainingMemory      Json?    // Ejercicios favoritos, evitados, progreso
+  emotionalMemory     Json?    // Tendencias emocionales, triggers, momentos clave
+  
+  // Progreso cuantitativo
+  weightHistory       Json?    // [{date, weight, notes}]
+  measurementsHistory Json?    // [{date, chest, waist, hips, etc}]
+  photoHistory        Json?    // [{date, url, type: "before/progress/after"}]
+  
+  // Análisis de comportamiento
+  behaviorPatterns    Json?    // Horarios, respuestas, motivadores, etc.
+  
+  // Resumen generado por IA (actualizado periódicamente)
+  aiSummary           String?  @db.Text
+  lastAISummaryUpdate DateTime?
+  
+  // Contexto enriquecido para prompts
+  companionshipLevel  String?  // "completo", "solo_entreno", "consejos_simples"
+  emotionalBaseline   Int?     // Estado emocional inicial (1-10)
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model NutritionLog {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  mealType        String   // "desayuno", "almuerzo", "cena", "snack"
+  description     String   @db.Text
+  photoUrl        String?  // URL de la foto de la comida (futuro)
+  
+  // Análisis (manual o IA)
+  calories        Int?
+  protein         Float?
+  carbs           Float?
+  fats            Float?
+  
+  // Contexto
+  userQuery       String?  @db.Text // "¿Puedo comer pizza?"
+  aiResponse      String?  @db.Text // Respuesta personalizada
+  
+  timestamp       DateTime @default(now())
+  
+  @@index([userId])
+  @@index([timestamp])
+}
+
+model TrainingLog {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  exerciseType    String   // "piernas", "pecho", "cardio", "fullbody"
+  exercises       Json     // Lista de ejercicios realizados
+  duration        Int?     // Minutos
+  intensity       String?  // "baja", "media", "alta"
+  
+  // Feedback del usuario
+  howFelt         String?  // "bien", "cansado", "con dolor", etc.
+  notes           String?  @db.Text
+  
+  timestamp       DateTime @default(now())
+  
+  @@index([userId])
+  @@index([timestamp])
+}
+
+model ProactiveMessage {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  messageType     String   // "checkin_reminder", "reactivation", "celebration", "followup"
+  content         String   @db.Text
+  
+  // Contexto usado para generar el mensaje
+  contextSnapshot Json?    // Snapshot del contexto en ese momento
+  
+  // Estado del mensaje
+  status          String   // "scheduled", "sent", "delivered", "read", "replied"
+  scheduledFor    DateTime?
+  sentAt          DateTime?
+  readAt          DateTime?
+  repliedAt       DateTime?
+  
+  // Si el usuario respondió
+  userResponse    String?  @db.Text
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([userId])
+  @@index([status])
+  @@index([messageType])
 }
