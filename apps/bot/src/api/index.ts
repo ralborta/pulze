@@ -7,6 +7,7 @@ import checkInRoutes from './routes/checkin.routes'
 import contentRoutes from './routes/content.routes'
 import preferencesRoutes from './routes/preferences.routes'
 import adminRoutes from './routes/admin.routes'
+import webhookRoutes from './routes/webhook.routes'
 
 export const apiRouter = Router()
 
@@ -30,6 +31,7 @@ apiRouter.use('/check-ins', checkInRoutes)
 apiRouter.use('/contents', contentRoutes)
 apiRouter.use('/preferences', preferencesRoutes)
 apiRouter.use('/admin', adminRoutes)
+apiRouter.use('/webhooks', webhookRoutes)
 
 /**
  * 404 handler

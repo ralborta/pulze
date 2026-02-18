@@ -11,6 +11,11 @@ DATABASE_URL="postgresql://user:password@host:port/database"
 # OpenAI API
 OPENAI_API_KEY="sk-..."
 
+# BuilderBot.app (WhatsApp Integration)
+BUILDERBOT_API_KEY="bb_live_..."
+BUILDERBOT_WEBHOOK_SECRET="webhook_secret_..."
+BUILDERBOT_API_URL="https://api.builderbot.app/v1"
+
 # JWT Authentication
 JWT_SECRET="your-secret-key-here-change-in-production"
 
@@ -23,6 +28,16 @@ BOT_URL="https://your-railway-bot.up.railway.app"
 NODE_ENV="development"
 PORT=3001
 ```
+
+## BuilderBot.app Setup
+
+1. Create account at https://app.builderbot.app
+2. Connect your WhatsApp Business number
+3. Get your API Key from Settings → API
+4. Get your Webhook Secret from Settings → Webhooks
+5. Configure webhook URL: `https://your-railway-bot.up.railway.app/api/webhooks/builderbot`
+6. Enable events: `message`, `status`, `media`
+7. Test connection with: `GET /api/webhooks/builderbot/health`
 
 ## Railway PostgreSQL Setup
 
