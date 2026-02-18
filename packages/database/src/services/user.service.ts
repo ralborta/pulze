@@ -1,11 +1,18 @@
 import { prisma } from '../client'
 import type { User, Prisma } from '@prisma/client'
 
+// Tipo extendido con relaciones incluidas
+export type UserWithRelations = User & {
+  preferences?: any | null
+  stats?: any | null
+  checkIns?: any[]
+}
+
 export class UserService {
   /**
    * Crear un nuevo usuario (durante onboarding)
    */
-  async create(data: Prisma.UserCreateInput): Promise<User> {
+  async create(data: Prisma.UserCreateInput): Promise<UserWithRelations> {
     const user = await prisma.user.create({
       data,
       include: {
@@ -29,7 +36,7 @@ export class UserService {
   /**
    * Buscar usuario por teléfono (WhatsApp)
    */
-  async findByPhone(phone: string): Promise<User | null> {
+  async findByPhone(phone: string): Promise<UserWithRelations | null> {
     return prisma.user.findUnique({
       where: { phone },
       include: {
@@ -42,7 +49,7 @@ export class UserService {
   /**
    * Buscar usuario por ID
    */
-  async findById(id: string): Promise<User | null> {
+  async findById(id: string): Promise<UserWithRelations | null> {
     return prisma.user.findUnique({
       where: { id },
       include: {
