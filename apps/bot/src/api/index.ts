@@ -1,71 +1,43 @@
-import { Router } from 'express';
-import { userService } from '../services/user.service';
-import { checkInService } from '../services/checkin.service';
+import { Router } from 'express'
 
-export const apiRouter = Router();
+// Import routes
+import authRoutes from './routes/auth.routes'
+import userRoutes from './routes/user.routes'
+import checkInRoutes from './routes/checkin.routes'
+import contentRoutes from './routes/content.routes'
+import preferencesRoutes from './routes/preferences.routes'
+import adminRoutes from './routes/admin.routes'
 
-apiRouter.get('/users', async (req, res) => {
-  try {
-    const users = await userService.getAllUsers();
-    res.json({ success: true, data: users });
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to fetch users' });
-  }
-});
+export const apiRouter = Router()
 
-apiRouter.get('/users/:phone', async (req, res) => {
-  try {
-    const user = await userService.getUser(req.params.phone);
-    if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found' });
-    }
-    res.json({ success: true, data: user });
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to fetch user' });
-  }
-});
+/**
+ * Health check
+ */
+apiRouter.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'pulze-api',
+    timestamp: new Date().toISOString(),
+  })
+})
 
-apiRouter.get('/users/:phone/checkins', async (req, res) => {
-  try {
-    const checkIns = await checkInService.getUserCheckIns(req.params.phone);
-    res.json({ success: true, data: checkIns });
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to fetch check-ins' });
-  }
-});
+/**
+ * Mount routes
+ */
+apiRouter.use('/auth', authRoutes)
+apiRouter.use('/users', userRoutes)
+apiRouter.use('/check-ins', checkInRoutes)
+apiRouter.use('/contents', contentRoutes)
+apiRouter.use('/preferences', preferencesRoutes)
+apiRouter.use('/admin', adminRoutes)
 
-apiRouter.get('/users/:phone/streak', async (req, res) => {
-  try {
-    const streak = await checkInService.getCheckInStreak(req.params.phone);
-    res.json({ success: true, data: { streak } });
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to fetch streak' });
-  }
-});
+/**
+ * 404 handler
+ */
+apiRouter.use('*', (req, res) => {
+  res.status(404).json({
+    error: 'Endpoint no encontrado',
+    path: req.originalUrl,
+  })
+})
 
-apiRouter.get('/users/:phone/weekly-summary', async (req, res) => {
-  try {
-    const summary = await checkInService.getWeeklySummary(req.params.phone);
-    res.json({ success: true, data: summary });
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to fetch summary' });
-  }
-});
-
-apiRouter.get('/stats', async (req, res) => {
-  try {
-    const users = await userService.getAllUsers();
-    const activeUsers = await userService.getActiveUsers();
-    
-    res.json({
-      success: true,
-      data: {
-        totalUsers: users.length,
-        activeUsers: activeUsers.length,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to fetch stats' });
-  }
-});
