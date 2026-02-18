@@ -58,6 +58,26 @@ export class CheckInService {
   }
 
   /**
+   * Obtener check-ins por rango de fechas
+   */
+  async getCheckInsByDateRange(
+    userId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<CheckIn[]> {
+    return prisma.checkIn.findMany({
+      where: {
+        userId,
+        timestamp: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      orderBy: { timestamp: 'desc' },
+    })
+  }
+
+  /**
    * Verificar si el usuario ya hizo check-in hoy
    */
   async hasCheckInToday(userId: string): Promise<boolean> {
