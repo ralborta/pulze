@@ -8,34 +8,48 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  phone        String    @unique
-  name         String
-  goal         String
-  restrictions String?
-  isActive     Boolean   @default(true)
-  isPremium    Boolean   @default(false)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                String    @id @default(uuid())
+  phone             String    @unique
+  name              String
+  email             String?
+  goal              String    // "Bajar peso", "Ganar músculo", etc.
+  restrictions      String?   // Lesiones, alergias, etc.
+  activityLevel     String?   // "Sedentario", "Activo", "Muy activo"
+  currentStreak     Int       @default(0)
+  longestStreak     Int       @default(0)
+  lastCheckInDate   DateTime?
+  onboardingComplete Boolean  @default(false)
+  isActive          Boolean   @default(true)
+  isPremium         Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
   
-  checkIns     CheckIn[]
-  preferences  UserPreferences?
+  checkIns          CheckIn[]
+  preferences       UserPreferences?
+  conversations     Conversation[]
+  stats             UserStats?
   
   @@index([phone])
   @@index([isActive])
+  @@index([lastCheckInDate])
 }
 
 model CheckIn {
-  id         String   @id @default(uuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  sleep      Int
-  energy     Int
-  mood       Int
-  willTrain  Boolean
+  sleep         Int      // 1-5 rating
+  energy        Int      // 1-5 rating
+  mood          String   // Texto libre o rating
+  willTrain     Boolean
+  trainedToday  Boolean  @default(false)
+  notes         String?  // Notas adicionales del usuario
   
-  timestamp  DateTime @default(now())
+  aiResponse    String?  @db.Text // Respuesta generada por IA
+  recommendation String? @db.Text // Recomendación del día
+  
+  timestamp     DateTime @default(now())
   
   @@index([userId])
   @@index([timestamp])
@@ -57,36 +71,45 @@ model UserPreferences {
 
 model Content {
   id          String   @id @default(uuid())
-  type        String
+  category    String   // "Entrenamiento", "Nutrición", "Mentalidad", "Bienestar"
+  type        String   // "tip", "guia", "rutina", "articulo"
   title       String
   description String
   content     String   @db.Text
   tags        String[]
+  difficulty  String?  // "Principiante", "Intermedio", "Avanzado"
+  duration    String?  // "5 min", "15 min", etc.
+  viewCount   Int      @default(0)
   isActive    Boolean  @default(true)
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
+  @@index([category])
   @@index([type])
   @@index([isActive])
 }
 
 model MessageTemplate {
   id          String   @id @default(uuid())
-  key         String   @unique
+  key         String   @unique   // "welcome", "checkin_morning", "weekly_summary", etc.
+  type        String               // "onboarding", "checkin", "resumen", "reactivacion", "felicitacion"
   name        String
   content     String   @db.Text
-  variables   String[]
+  variables   String[]             // ["nombre", "racha", "objetivo"]
+  usageCount  Int      @default(0)
+  isActive    Boolean  @default(true)
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
   @@index([key])
+  @@index([type])
 }
 
 model Analytics {
   id          String   @id @default(uuid())
-  eventType   String
+  eventType   String   // "onboarding_started", "onboarding_completed", "checkin_completed", etc.
   userId      String?
   metadata    Json?
   
@@ -95,4 +118,41 @@ model Analytics {
   @@index([eventType])
   @@index([userId])
   @@index([timestamp])
+}
+
+model Conversation {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  role        String   // "user" | "assistant"
+  message     String   @db.Text
+  metadata    Json?    // Cualquier dato adicional (tipo de mensaje, contexto, etc.)
+  
+  timestamp   DateTime @default(now())
+  
+  @@index([userId])
+  @@index([timestamp])
+}
+
+model UserStats {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  totalCheckIns         Int      @default(0)
+  currentStreak         Int      @default(0)
+  longestStreak         Int      @default(0)
+  averageSleep          Float?
+  averageEnergy         Float?
+  trainingDays          Int      @default(0)
+  lastActiveDate        DateTime?
+  
+  // Engagement metrics
+  messagesReceived      Int      @default(0)
+  messagesSent          Int      @default(0)
+  contentsViewed        Int      @default(0)
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
