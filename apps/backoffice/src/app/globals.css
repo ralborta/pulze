@@ -1,3 +1,87 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    
+    /* PULZE Brand Colors */
+    --primary-cyan: 189 100% 50%;      /* #00D9FF */
+    --primary-blue: 213 72% 59%;       /* #4A90E2 */
+    --dark-navy: 220 40% 8%;           /* #0A0E1A */
+    --dark-blue: 220 30% 12%;          /* #151B2E */
+    
+    --primary: var(--primary-cyan);
+    --primary-foreground: 0 0% 100%;
+    
+    --accent: var(--primary-blue);
+    --accent-foreground: 0 0% 100%;
+  }
+  
+  .dark {
+    --background: var(--dark-navy);
+    --foreground: 0 0% 95%;
+  }
+}
+
+/* Gradient backgrounds */
+.bg-pulze-gradient {
+  background: linear-gradient(135deg, #0A0E1A 0%, #151B2E 50%, #1A2847 100%);
+}
+
+.bg-pulze-gradient-light {
+  background: linear-gradient(135deg, #00D9FF 0%, #4A90E2 100%);
+}
+
+/* Glass morphism effect */
+.glass {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Glow effect */
+.glow-cyan {
+  box-shadow: 0 0 30px rgba(0, 217, 255, 0.3);
+}
+
+.glow-blue {
+  box-shadow: 0 0 30px rgba(74, 144, 226, 0.3);
+}
+
+/* Smooth animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(0, 217, 255, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(0, 217, 255, 0.6);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Gradient text */
+.text-gradient {
+  background: linear-gradient(135deg, #00D9FF 0%, #4A90E2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

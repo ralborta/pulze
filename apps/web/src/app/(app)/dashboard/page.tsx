@@ -10,13 +10,13 @@ export default function DashboardPage() {
       {/* Header with Logo */}
       <header className="text-center mb-8">
         <div className="flex justify-center mb-4">
-          <div className="relative w-16 h-16 animate-pulse-glow">
+          <div className="relative w-20 h-20 animate-pulse-glow">
             <Image
-              src="/pulze-logo.jpg"
+              src="/pulze-logo-new.png"
               alt="PULZE"
-              width={64}
-              height={64}
-              className="rounded-full"
+              width={80}
+              height={80}
+              className="w-full h-full object-contain"
             />
           </div>
         </div>

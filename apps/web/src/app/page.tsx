@@ -17,20 +17,17 @@ export default function HomePage() {
         {/* Logo Header */}
         <header className="text-center mb-12 animate-fade-in">
           <div className="flex justify-center mb-6">
-            <div className="relative w-32 h-32 animate-pulse-glow">
+            <div className="relative w-40 h-40 animate-pulse-glow">
               <Image
-                src="/pulze-logo.jpg"
+                src="/pulze-logo-new.png"
                 alt="PULZE Logo"
-                width={128}
-                height={128}
-                className="rounded-full"
+                width={160}
+                height={160}
+                className="w-full h-full object-contain"
                 priority
               />
             </div>
           </div>
-          <p className="text-cyan-300 text-lg font-light tracking-wide">
-            Life in progress
-          </p>
         </header>
 
         {/* Hero Section */}

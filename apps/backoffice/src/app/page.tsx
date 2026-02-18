@@ -1,82 +1,118 @@
 'use client'
 
-import { Users, Activity, TrendingUp, MessageSquare, Settings, BarChart3 } from 'lucide-react'
-import Link from 'next/link'
+import { Users, Activity, TrendingUp, MessageSquare, Flame, Clock } from 'lucide-react'
 
 export default function BackofficePage() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center">
-              <Activity className="w-8 h-8 text-green-500" />
-              <span className="ml-2 text-xl font-bold">PULZE Backoffice</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600">Admin</span>
-              <Settings className="w-5 h-5 text-gray-400 cursor-pointer" />
-            </div>
+    <>
+      {/* Header */}
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold text-gradient mb-2">Dashboard</h1>
+        <p className="text-gray-400">Vista general de la plataforma PULZE</p>
+      </header>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatCard
+          title="Usuarios Totales"
+          value="1,234"
+          change="+12%"
+          icon={<Users className="w-6 h-6" />}
+          color="blue"
+        />
+        <StatCard
+          title="Usuarios Activos"
+          value="856"
+          change="+8%"
+          icon={<Activity className="w-6 h-6" />}
+          color="green"
+        />
+        <StatCard
+          title="Check-ins Hoy"
+          value="432"
+          change="+15%"
+          icon={<MessageSquare className="w-6 h-6" />}
+          color="purple"
+        />
+        <StatCard
+          title="Retención 7d"
+          value="78%"
+          change="+3%"
+          icon={<TrendingUp className="w-6 h-6" />}
+          color="orange"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent Users */}
+        <div className="lg:col-span-2 glass rounded-3xl p-6">
+          <h2 className="text-xl font-semibold mb-6 text-white">Usuarios Recientes</h2>
+          <div className="space-y-4">
+            <UserRow 
+              name="María González" 
+              phone="+54 9 11 1234-5678" 
+              status="Activo" 
+              streak={7}
+              email="maria@example.com"
+            />
+            <UserRow 
+              name="Juan Pérez" 
+              phone="+54 9 11 8765-4321" 
+              status="Activo" 
+              streak={12}
+              email="juan@example.com"
+            />
+            <UserRow 
+              name="Ana Martínez" 
+              phone="+54 9 11 2345-6789" 
+              status="Inactivo" 
+              streak={3}
+              email="ana@example.com"
+            />
+            <UserRow 
+              name="Carlos Ruiz" 
+              phone="+54 9 11 3456-7890" 
+              status="Activo" 
+              streak={5}
+              email="carlos@example.com"
+            />
           </div>
-        </div>
-      </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard
-            title="Usuarios Totales"
-            value="1,234"
-            change="+12%"
-            icon={<Users className="w-6 h-6" />}
-            color="blue"
-          />
-          <StatCard
-            title="Usuarios Activos"
-            value="856"
-            change="+8%"
-            icon={<Activity className="w-6 h-6" />}
-            color="green"
-          />
-          <StatCard
-            title="Check-ins Hoy"
-            value="432"
-            change="+15%"
-            icon={<MessageSquare className="w-6 h-6" />}
-            color="purple"
-          />
-          <StatCard
-            title="Retención 7d"
-            value="78%"
-            change="+3%"
-            icon={<TrendingUp className="w-6 h-6" />}
-            color="orange"
-          />
+          <button className="mt-6 w-full py-3 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl text-cyan-400 font-medium transition">
+            Ver todos los usuarios
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Usuarios Recientes</h2>
+        {/* Quick Stats */}
+        <div className="space-y-6">
+          {/* Engagement */}
+          <div className="glass rounded-3xl p-6">
+            <h2 className="text-lg font-semibold mb-4 text-white flex items-center gap-2">
+              <Flame className="w-5 h-5 text-orange-400" />
+              Engagement
+            </h2>
             <div className="space-y-4">
-              <UserRow name="María González" phone="+54 9 11 1234-5678" status="Activo" streak={7} />
-              <UserRow name="Juan Pérez" phone="+54 9 11 8765-4321" status="Activo" streak={12} />
-              <UserRow name="Ana Martínez" phone="+54 9 11 2345-6789" status="Inactivo" streak={3} />
+              <MetricRow label="Racha promedio" value="6.5 días" />
+              <MetricRow label="Check-ins/usuario" value="4.2/semana" />
+              <MetricRow label="Tiempo respuesta" value="< 2 min" />
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Acciones Rápidas</h2>
-            <div className="space-y-3">
-              <QuickAction icon={<Users />} title="Gestionar Usuarios" href="/users" />
-              <QuickAction icon={<MessageSquare />} title="Plantillas" href="/templates" />
-              <QuickAction icon={<BarChart3 />} title="Reportes" href="/reports" />
-              <QuickAction icon={<Settings />} title="Configuración" href="/settings" />
+          {/* Activity Today */}
+          <div className="glass rounded-3xl p-6">
+            <h2 className="text-lg font-semibold mb-4 text-white flex items-center gap-2">
+              <Clock className="w-5 h-5 text-cyan-400" />
+              Hoy
+            </h2>
+            <div className="space-y-4">
+              <MetricRow label="Nuevos usuarios" value="23" />
+              <MetricRow label="Check-ins completados" value="432" />
+              <MetricRow label="Mensajes enviados" value="1,245" />
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </>
   )
 }
 
@@ -94,22 +130,22 @@ function StatCard({
   color: 'blue' | 'green' | 'purple' | 'orange'
 }) {
   const colorClasses = {
-    blue: 'bg-blue-100 text-blue-600',
-    green: 'bg-green-100 text-green-600',
-    purple: 'bg-purple-100 text-purple-600',
-    orange: 'bg-orange-100 text-orange-600',
+    blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    green: 'bg-green-500/10 text-green-400 border-green-500/20',
+    purple: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    orange: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="glass rounded-3xl p-6 border border-white/10 hover:border-cyan-500/30 transition">
       <div className="flex items-center justify-between mb-4">
-        <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
+        <div className={`p-3 rounded-xl border ${colorClasses[color]}`}>
           {icon}
         </div>
-        <span className="text-sm font-semibold text-green-600">{change}</span>
+        <span className="text-sm font-semibold text-green-400">{change}</span>
       </div>
-      <h3 className="text-gray-600 text-sm mb-1">{title}</h3>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
+      <h3 className="text-gray-400 text-sm mb-1">{title}</h3>
+      <p className="text-3xl font-bold text-white">{value}</p>
     </div>
   )
 }
@@ -117,48 +153,56 @@ function StatCard({
 function UserRow({ 
   name, 
   phone, 
+  email,
   status, 
   streak 
 }: { 
   name: string
   phone: string
+  email: string
   status: string
   streak: number
 }) {
   return (
-    <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
-      <div>
-        <p className="font-semibold text-gray-900">{name}</p>
-        <p className="text-sm text-gray-500">{phone}</p>
+    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition">
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center">
+          <span className="text-white font-bold text-lg">{name[0]}</span>
+        </div>
+        <div>
+          <p className="font-semibold text-white">{name}</p>
+          <p className="text-sm text-gray-400">{email}</p>
+          <p className="text-xs text-gray-500">{phone}</p>
+        </div>
       </div>
       <div className="text-right">
-        <span className={`inline-block px-2 py-1 text-xs rounded-full ${
-          status === 'Activo' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+        <span className={`inline-block px-3 py-1 text-xs rounded-full font-medium ${
+          status === 'Activo' 
+            ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+            : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
         }`}>
           {status}
         </span>
-        <p className="text-sm text-gray-600 mt-1">🔥 {streak} días</p>
+        <p className="text-sm text-orange-400 mt-2 flex items-center gap-1 justify-end">
+          <Flame className="w-4 h-4" />
+          {streak} días
+        </p>
       </div>
     </div>
   )
 }
 
-function QuickAction({ 
-  icon, 
-  title, 
-  href 
+function MetricRow({ 
+  label, 
+  value 
 }: { 
-  icon: React.ReactNode
-  title: string
-  href: string
+  label: string
+  value: string
 }) {
   return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition"
-    >
-      <div className="text-gray-600">{icon}</div>
-      <span className="font-medium text-gray-900">{title}</span>
-    </Link>
+    <div className="flex items-center justify-between">
+      <span className="text-sm text-gray-400">{label}</span>
+      <span className="text-white font-semibold">{value}</span>
+    </div>
   )
 }
