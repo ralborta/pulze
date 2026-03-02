@@ -19,6 +19,7 @@ COPY apps/bot ./apps/bot
 RUN pnpm install && \
   pnpm --filter @pulze/database run generate && \
   pnpm --filter @pulze/database build && \
+  test -f packages/database/dist/index.d.ts && \
   pnpm run build:bot
 
 # Expose port
