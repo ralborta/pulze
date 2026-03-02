@@ -14,10 +14,13 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml ./
 COPY packages ./packages
 COPY apps/bot ./apps/bot
-COPY .railway-build-version ./
 
-# Install: solo "pnpm install" (sin --frozen-lockfile)
+# Install
 RUN pnpm install
+
+# Generar cliente Prisma y compilar @pulze/database (el bot lo necesita)
+RUN pnpm --filter @pulze/database run generate
+RUN pnpm --filter @pulze/database build
 
 # Build the bot
 RUN pnpm run build:bot

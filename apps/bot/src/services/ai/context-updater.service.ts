@@ -1,5 +1,4 @@
-import { prisma, UserWithRelations } from '@pulze/database'
-import { CheckIn, Conversation } from '@prisma/client'
+import { prisma, UserWithRelations, CheckIn, Conversation } from '@pulze/database'
 import { patternAnalyzer } from './pattern-analyzer.service'
 import { aiService } from './ai.service'
 

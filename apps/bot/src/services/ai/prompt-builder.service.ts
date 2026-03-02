@@ -1,5 +1,4 @@
-import { UserWithRelations } from '@pulze/database'
-import { CheckIn, Conversation } from '@prisma/client'
+import { UserWithRelations, CheckIn, Conversation } from '@pulze/database'
 
 /**
  * PromptBuilderService - Construye prompts dinámicos y personalizados
@@ -61,8 +60,8 @@ Acompañar a las personas en su transformación física, mental y emocional con:
     // Patrones recientes (últimos 3 check-ins)
     if (user.checkIns && user.checkIns.length > 1) {
       const lastCheckIns = user.checkIns.slice(0, 3)
-      const avgSleep = lastCheckIns.reduce((sum, c) => sum + c.sleep, 0) / lastCheckIns.length
-      const avgEnergy = lastCheckIns.reduce((sum, c) => sum + c.energy, 0) / lastCheckIns.length
+      const avgSleep = lastCheckIns.reduce((sum: number, c: { sleep: number }) => sum + c.sleep, 0) / lastCheckIns.length
+      const avgEnergy = lastCheckIns.reduce((sum: number, c: { energy: number }) => sum + c.energy, 0) / lastCheckIns.length
       
       contextParts.push(`**Promedio reciente:** Sueño ${avgSleep.toFixed(1)}/5, Energía ${avgEnergy.toFixed(1)}/5`)
     }
@@ -71,7 +70,7 @@ Acompañar a las personas en su transformación física, mental y emocional con:
     if (recentConversations.length > 0) {
       const lastMessages = recentConversations
         .slice(0, 6) // 3 intercambios (user + assistant)
-        .map(c => `${c.role === 'user' ? 'Usuario' : 'Tú'}: ${c.message}`)
+        .map((c: { role: string; message: string }) => `${c.role === 'user' ? 'Usuario' : 'Tú'}: ${c.message}`)
         .join('\n')
       
       contextParts.push(`\n**Conversación reciente:**\n${lastMessages}`)

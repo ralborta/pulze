@@ -141,7 +141,7 @@ export async function getAnalytics(req: AuthRequest, res: Response) {
 
     // Racha promedio
     const avgStreak = activeUsers.length > 0
-      ? activeUsers.reduce((acc, u) => acc + u.currentStreak, 0) / activeUsers.length
+      ? activeUsers.reduce((acc: number, u: { currentStreak: number }) => acc + u.currentStreak, 0) / activeUsers.length
       : 0
 
     return res.json({

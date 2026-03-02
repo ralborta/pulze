@@ -65,7 +65,7 @@ export class ContextService {
   ): Promise<ChatMessage[]> {
     const conversations = await conversationService.getRecentMessages(userId, limit * 2) // x2 porque cada intercambio son 2 mensajes
 
-    return conversations.map((conv) => ({
+    return conversations.map((conv: { role: string; message: string }) => ({
       role: conv.role as 'user' | 'assistant',
       content: conv.message,
     }))
@@ -102,7 +102,7 @@ export class ContextService {
 
     summary.push(`Últimos check-ins (${recentCheckIns.length}):`)
 
-    recentCheckIns.forEach((checkIn, index) => {
+    recentCheckIns.forEach((checkIn: { timestamp: Date; sleep: number; energy: number; trainedToday: boolean }, index: number) => {
       const date = new Date(checkIn.timestamp).toLocaleDateString('es-AR')
       summary.push(
         `${index + 1}. ${date}: Sueño ${checkIn.sleep}/5, Energía ${checkIn.energy}/5, ${checkIn.trainedToday ? 'Entrenó' : 'No entrenó'}`

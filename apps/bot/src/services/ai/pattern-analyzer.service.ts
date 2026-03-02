@@ -1,5 +1,4 @@
-import { UserWithRelations, checkInService } from '@pulze/database'
-import { CheckIn } from '@prisma/client'
+import { UserWithRelations, checkInService, CheckIn } from '@pulze/database'
 
 /**
  * Interfaz para patrones detectados
