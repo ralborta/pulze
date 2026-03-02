@@ -15,15 +15,11 @@ COPY package.json pnpm-workspace.yaml ./
 COPY packages ./packages
 COPY apps/bot ./apps/bot
 
-# Install
-RUN pnpm install
-
-# Generar cliente Prisma y compilar @pulze/database (el bot lo necesita)
-RUN pnpm --filter @pulze/database run generate
-RUN pnpm --filter @pulze/database build
-
-# Build the bot
-RUN pnpm run build:bot
+# Install, generar Prisma, compilar database y bot (todo en uno para evitar caché inconsistente)
+RUN pnpm install && \
+  pnpm --filter @pulze/database run generate && \
+  pnpm --filter @pulze/database build && \
+  pnpm run build:bot
 
 # Expose port
 EXPOSE 3001
