@@ -11,15 +11,8 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "moduleResolution": "node",
-    "types": ["node"],
-    "baseUrl": ".",
-    "paths": {
-      "@pulze/database": ["../../packages/database"]
-    }
+    "types": ["node"]
   },
-  "references": [
-    { "path": "../../packages/database" }
-  ],
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }

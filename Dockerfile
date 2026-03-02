@@ -16,7 +16,7 @@ COPY packages ./packages
 COPY apps/bot ./apps/bot
 
 # Install, generar Prisma, compilar database y bot
-RUN pnpm install --frozen-lockfile && \
+RUN pnpm install && \
   pnpm --filter @pulze/database run generate && \
   pnpm --filter @pulze/database build && \
   pnpm run build:bot
