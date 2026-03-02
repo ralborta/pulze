@@ -1,19 +1,16 @@
 # Backoffice PULZE (Next.js standalone)
-FROM node:20-alpine AS base
+# Build context en Easypanel: "apps/backoffice" (raíz = carpeta de esta app)
+FROM node:20-alpine
 
 WORKDIR /app
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY apps/backoffice ./apps/backoffice
 
-RUN corepack enable pnpm && pnpm install --filter @pulze/backoffice
-RUN pnpm --filter @pulze/backoffice build
+COPY package.json ./
+RUN npm install
 
-# Standalone: copiar static y public
-RUN cd apps/backoffice && \
-  cp -r .next/static .next/standalone/.next/ && \
-  (cp -r public .next/standalone/ 2>/dev/null || true)
+COPY . .
+RUN npm run build
+RUN cp -r .next/static .next/standalone/.next/ && (cp -r public .next/standalone/ 2>/dev/null || true)
 
-WORKDIR /app/apps/backoffice
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
 EXPOSE 3000

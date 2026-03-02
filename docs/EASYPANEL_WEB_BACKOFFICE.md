@@ -7,7 +7,7 @@ Para que se vean la **WebApp** y el **Backoffice** además del bot, creá dos ap
 - **Nueva App** → Origen: **Git** (mismo repo que el bot).
 - **Build**:
   - **Dockerfile path:** `apps/web/Dockerfile`
-  - **Build context:** raíz del repo (por defecto suele ser `.`).
+  - **Root directory / Build context:** `apps/web` (obligatorio: si usás la raíz del repo, el `.dockerignore` raíz excluye `apps/web` y el build falla).
 - **Puerto:** `3000`.
 - **Dominio:** Ej. `web.tudominio.com` o el subdominio que uses.
 - **Variables de entorno:** por ahora ninguna obligatoria (si más adelante la web llama al bot/API, agregá `NEXT_PUBLIC_API_URL` o similar).
@@ -17,7 +17,7 @@ Para que se vean la **WebApp** y el **Backoffice** además del bot, creá dos ap
 - **Nueva App** → Origen: **Git** (mismo repo).
 - **Build**:
   - **Dockerfile path:** `apps/backoffice/Dockerfile`
-  - **Build context:** raíz del repo.
+  - **Root directory / Build context:** `apps/backoffice`
 - **Puerto:** `3000`.
 - **Dominio:** Ej. `backoffice.tudominio.com`.
 
