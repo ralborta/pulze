@@ -10,13 +10,13 @@ RUN npm install -g pnpm@8.15.0
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-workspace.yaml ./
+# Copy package files (lockfile para install reproducible)
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages ./packages
 COPY apps/bot ./apps/bot
 
-# Install, generar Prisma, compilar database y bot (todo en uno para evitar caché inconsistente)
-RUN pnpm install && \
+# Install, generar Prisma, compilar database y bot
+RUN pnpm install --frozen-lockfile && \
   pnpm --filter @pulze/database run generate && \
   pnpm --filter @pulze/database build && \
   pnpm run build:bot
