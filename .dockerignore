@@ -4,6 +4,5 @@ dist
 .env
 *.log
 .DS_Store
-apps/web
-apps/backoffice
+# apps/web y apps/backoffice no excluidos: el build de web/backoffice los necesita cuando el contexto es la raíz
 .next

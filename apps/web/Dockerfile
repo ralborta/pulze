@@ -1,14 +1,12 @@
 # WebApp PULZE (Next.js standalone)
-# Build context en Easypanel: raíz del repo O "apps/web" (raíz = carpeta de esta app)
+# Build context en Easypanel: raíz del repo (no poner Root directory = apps/web)
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copiar solo lo necesario para instalar (mejor cache)
-COPY package.json ./
+# Copiar la app web desde el monorepo (contexto = raíz del repo)
+COPY apps/web ./
 RUN npm install
-
-COPY . .
 RUN npm run build
 RUN cp -r .next/static .next/standalone/.next/ && (cp -r public .next/standalone/ 2>/dev/null || true)
 

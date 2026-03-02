@@ -1,13 +1,11 @@
 # Backoffice PULZE (Next.js standalone)
-# Build context en Easypanel: "apps/backoffice" (raíz = carpeta de esta app)
+# Build context en Easypanel: raíz del repo (no poner Root directory = apps/backoffice)
 FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json ./
+COPY apps/backoffice ./
 RUN npm install
-
-COPY . .
 RUN npm run build
 RUN cp -r .next/static .next/standalone/.next/ && (cp -r public .next/standalone/ 2>/dev/null || true)
 
