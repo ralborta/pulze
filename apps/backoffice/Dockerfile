@@ -5,7 +5,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY apps/backoffice ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 RUN npm run build
 RUN cp -r .next/static .next/standalone/.next/ && (cp -r public .next/standalone/ 2>/dev/null || true)
 
