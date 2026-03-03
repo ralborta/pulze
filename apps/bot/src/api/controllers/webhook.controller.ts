@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import { userService, prisma } from '@pulze/database'
-import { aiService, contextService } from '../../services/ai'
+import { aiService, contextService, contextUpdater } from '../../services/ai'
 
 /**
  * Tipos de eventos de BuilderBot
@@ -98,6 +98,26 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     return res.json({ message: response })
   }
 
+  // Si el bot está desactivado (operador humano atiende), solo guardar mensaje y no responder
+  if (user.botEnabled === false) {
+    await prisma.conversation.create({
+      data: {
+        userId: user.id,
+        role: 'user',
+        message: message || '',
+        metadata: { intent, entities, type, operatorMode: true },
+      },
+    })
+    await prisma.userStats.update({
+      where: { userId: user.id },
+      data: {
+        messagesReceived: { increment: 1 },
+        lastActiveDate: new Date(),
+      },
+    })
+    return res.status(200).json({ message: null })
+  }
+
   // 2. Guardar mensaje en conversación
   await prisma.conversation.create({
     data: {
@@ -143,6 +163,9 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
       metadata: { intent },
     },
   })
+
+  // 5b. Actualizar resumen de conversación (para usar en el próximo prompt)
+  await contextUpdater.updateConversationSummary(user.id, message || '', response)
 
   // 6. Actualizar stats
   await prisma.userStats.update({

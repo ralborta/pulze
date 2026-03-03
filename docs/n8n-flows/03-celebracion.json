@@ -1,0 +1,102 @@
+{
+  "name": "PULZE - Celebración (rachas)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * *"
+            }
+          ]
+        }
+      },
+      "id": "c3d4e5f6-0001-4000-8000-000000000001",
+      "name": "Diario 18:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.API_URL || 'https://tu-api.com' }}/api/n8n/users/milestones",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{ $env.API_KEY }}" }
+          ]
+        }
+      },
+      "id": "c3d4e5f6-0002-4000-8000-000000000002",
+      "name": "GET milestones",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json;\nreturn (body.users || []).map(u => ({ json: u }));"
+      },
+      "id": "c3d4e5f6-0003-4000-8000-000000000003",
+      "name": "Un ítem por usuario",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_URL || 'https://tu-api.com' }}/api/n8n/openai/generate-celebration",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{ $env.API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userId\": \"{{ $json.id }}\",\n  \"milestone\": \"{{ $json.milestone || 'streak_' + $json.currentStreak }}\"\n}",
+        "options": {}
+      },
+      "id": "c3d4e5f6-0004-4000-8000-000000000004",
+      "name": "POST generate-celebration",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_URL || 'https://tu-api.com' }}/api/n8n/proactive-messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{ $env.API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userId\": \"{{ $('Un ítem por usuario').item.json.id }}\",\n  \"content\": \"{{ $json.content }}\",\n  \"messageType\": \"celebration\"\n}",
+        "options": {}
+      },
+      "id": "c3d4e5f6-0005-4000-8000-000000000005",
+      "name": "POST proactive-messages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 0]
+    }
+  ],
+  "connections": {
+    "Diario 18:00": { "main": [[{ "node": "GET milestones", "type": "main", "index": 0 }]] },
+    "GET milestones": { "main": [[{ "node": "Un ítem por usuario", "type": "main", "index": 0 }]] },
+    "Un ítem por usuario": { "main": [[{ "node": "POST generate-celebration", "type": "main", "index": 0 }]] },
+    "POST generate-celebration": { "main": [[{ "node": "POST proactive-messages", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": []
+}

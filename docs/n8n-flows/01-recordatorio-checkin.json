@@ -1,0 +1,172 @@
+{
+  "name": "PULZE - Recordatorio check-in",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8-22 * * *"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Cada hora 8-22",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "webhookId": ""
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.API_URL || 'https://tu-api.com' }}/api/n8n/users/pending-checkin",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "GET pending-checkin",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json;\nconst users = body.users || [];\nreturn users.map(u => ({ json: u }));"
+      },
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Un ítem por usuario",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_URL || 'https://tu-api.com' }}/api/n8n/openai/generate-reminder",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "userId",
+              "value": "={{ $json.id }}"
+            }
+          ]
+        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userId\": \"{{ $json.id }}\"\n}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "POST generate-reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_URL || 'https://tu-api.com' }}/api/n8n/proactive-messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userId\": \"{{ $('Un ítem por usuario').item.json.id }}\",\n  \"content\": \"{{ $json.content }}\",\n  \"messageType\": \"checkin_reminder\"\n}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "name": "POST proactive-messages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 0]
+    }
+  ],
+  "connections": {
+    "Cada hora 8-22": {
+      "main": [
+        [
+          {
+            "node": "GET pending-checkin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET pending-checkin": {
+      "main": [
+        [
+          {
+            "node": "Un ítem por usuario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Un ítem por usuario": {
+      "main": [
+        [
+          {
+            "node": "POST generate-reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST generate-reminder": {
+      "main": [
+        [
+          {
+            "node": "POST proactive-messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

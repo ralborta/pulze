@@ -72,6 +72,51 @@ export class ContextUpdater {
   }
 
   /**
+   * Actualizar resumen de conversación después de cada interacción.
+   * Se llama desde el webhook tras guardar mensaje usuario + respuesta asistente.
+   * El nuevo resumen se usa en el siguiente prompt (en lugar de todo el historial).
+   */
+  async updateConversationSummary(
+    userId: string,
+    userMessage: string,
+    assistantMessage: string
+  ): Promise<void> {
+    try {
+      let context = await prisma.userContext.findUnique({
+        where: { userId },
+      })
+
+      if (!context) {
+        context = await prisma.userContext.create({
+          data: {
+            userId,
+            nutritionMemory: {},
+            trainingMemory: {},
+            emotionalMemory: {},
+          },
+        })
+      }
+
+      const previousSummary = context.aiSummary || null
+      const newSummary = await aiService.generateConversationSummary(
+        previousSummary,
+        userMessage,
+        assistantMessage
+      )
+
+      await prisma.userContext.update({
+        where: { userId },
+        data: {
+          aiSummary: newSummary,
+          lastAISummaryUpdate: new Date(),
+        },
+      })
+    } catch (error) {
+      console.error('Error updating conversation summary:', error)
+    }
+  }
+
+  /**
    * Actualizar contexto después de una conversación
    */
   async updateAfterConversation(

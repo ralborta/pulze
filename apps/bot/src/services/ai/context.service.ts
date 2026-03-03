@@ -1,4 +1,4 @@
-import { conversationService, userService } from '@pulze/database'
+import { conversationService, userService, prisma } from '@pulze/database'
 import { ChatMessage } from './ai.service'
 
 /**
@@ -53,7 +53,25 @@ export class ContextService {
       contextParts.push(`Horario check-in: ${user.preferences.reminderTime}`)
     }
 
+    // Resumen de conversación reciente (para no inyectar todo el historial)
+    const summary = await this.getConversationSummary(userId)
+    if (summary) {
+      contextParts.push(`\nResumen conversación reciente:\n${summary}`)
+    }
+
     return contextParts.join('\n')
+  }
+
+  /**
+   * Obtener resumen de conversación guardado (UserContext.aiSummary).
+   * Se usa en el prompt en lugar del historial completo.
+   */
+  async getConversationSummary(userId: string): Promise<string | null> {
+    const ctx = await prisma.userContext.findUnique({
+      where: { userId },
+      select: { aiSummary: true },
+    })
+    return ctx?.aiSummary ?? null
   }
 
   /**

@@ -3,6 +3,7 @@ import { authenticateAdmin } from '../middleware/auth'
 import {
   getUsers,
   getUserById,
+  updateUserBot,
   getAnalytics,
   getInactiveUsers,
   createContent,
@@ -24,6 +25,7 @@ router.use(authenticateAdmin)
  */
 router.get('/users', getUsers)
 router.get('/users/inactive', getInactiveUsers)
+router.patch('/users/:id/bot', updateUserBot)
 router.get('/users/:id', getUserById)
 
 /**

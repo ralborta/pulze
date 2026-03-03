@@ -8,6 +8,7 @@ import contentRoutes from './routes/content.routes'
 import preferencesRoutes from './routes/preferences.routes'
 import adminRoutes from './routes/admin.routes'
 import webhookRoutes from './routes/webhook.routes'
+import n8nRoutes from './routes/n8n.routes'
 
 export const apiRouter = Router()
 
@@ -32,6 +33,7 @@ apiRouter.use('/contents', contentRoutes)
 apiRouter.use('/preferences', preferencesRoutes)
 apiRouter.use('/admin', adminRoutes)
 apiRouter.use('/webhooks', webhookRoutes)
+apiRouter.use('/n8n', n8nRoutes)
 
 /**
  * 404 handler

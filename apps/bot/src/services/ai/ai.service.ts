@@ -80,6 +80,43 @@ export class AIService {
   }
 
   /**
+   * Generar resumen breve de conversación (resumen anterior + último intercambio → nuevo resumen).
+   * Para actualizar UserContext.aiSummary después de cada interacción.
+   */
+  async generateConversationSummary(
+    previousSummary: string | null,
+    userMessage: string,
+    assistantMessage: string
+  ): Promise<string> {
+    try {
+      const systemPrompt = `Sos un asistente que resume conversaciones de un coach de bienestar con un usuario.
+Dado un resumen anterior (o vacío) y el último intercambio, generá un NUEVO resumen breve (2-4 oraciones) que capture:
+- Temas tratados, estado del usuario, compromisos o acciones mencionadas.
+- Mantené solo lo esencial para que el coach recuerde el contexto en la próxima interacción.
+- Escribí en tercera persona. No repitas el resumen anterior literal; actualizalo.`
+
+      const userPrompt = previousSummary
+        ? `Resumen anterior:\n${previousSummary}\n\nÚltimo intercambio:\nUsuario: ${userMessage}\nCoach: ${assistantMessage}\n\nNuevo resumen:`
+        : `Último intercambio:\nUsuario: ${userMessage}\nCoach: ${assistantMessage}\n\nResumen:`
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.4,
+        max_tokens: 150,
+      })
+
+      return (completion.choices[0].message.content || '').trim()
+    } catch (error: any) {
+      console.error('Error generating conversation summary:', error)
+      return previousSummary || ''
+    }
+  }
+
+  /**
    * Extraer información estructurada de una respuesta del usuario
    * Útil para detectar objetivos, restricciones, etc.
    */

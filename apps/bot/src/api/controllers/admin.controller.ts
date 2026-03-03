@@ -60,6 +60,37 @@ export async function getUsers(req: AuthRequest, res: Response) {
 }
 
 /**
+ * PATCH /api/admin/users/:id/bot
+ * Activar o desactivar el bot para un usuario (operador toma control)
+ */
+export async function updateUserBot(req: AuthRequest, res: Response) {
+  try {
+    const { id } = req.params
+    const { botEnabled } = req.body as { botEnabled?: boolean }
+
+    if (typeof botEnabled !== 'boolean') {
+      return res.status(400).json({ error: 'botEnabled debe ser true o false' })
+    }
+
+    const user = await prisma.user.update({
+      where: { id },
+      data: {
+        botEnabled,
+        ...(botEnabled === false ? { operatorTakenOverAt: new Date() } : { operatorTakenOverAt: null }),
+      },
+    })
+
+    return res.json({ user, botEnabled: user.botEnabled })
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Usuario no encontrado' })
+    }
+    console.error('Error updating user bot:', error)
+    return res.status(500).json({ error: 'Error al actualizar estado del bot' })
+  }
+}
+
+/**
  * GET /api/admin/users/:id
  * Obtener detalle completo de un usuario
  */
