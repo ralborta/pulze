@@ -73,3 +73,23 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_BACKOFFICE_PROJECT_ID }}
           working-directory: apps/backoffice
+
+  # Easypanel: deploy automático al hacer push (opcional).
+  # En cada app en Easypanel: copiá la "Deploy Webhook URL" y agregala en GitHub Secrets.
+  # Secretos: EASYPANEL_BOT_WEBHOOK, EASYPANEL_WEB_WEBHOOK, EASYPANEL_BACKOFFICE_WEBHOOK
+  # O uno solo: EASYPANEL_WEBHOOK_URL. Ver docs/EASYPANEL_DEPLOY.md
+  deploy-easypanel:
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Easypanel deploys
+        env:
+          BOT: ${{ secrets.EASYPANEL_BOT_WEBHOOK }}
+          WEB: ${{ secrets.EASYPANEL_WEB_WEBHOOK }}
+          BACK: ${{ secrets.EASYPANEL_BACKOFFICE_WEBHOOK }}
+          ONE: ${{ secrets.EASYPANEL_WEBHOOK_URL }}
+        run: |
+          for url in "$BOT" "$WEB" "$BACK" "$ONE"; do
+            [ -n "$url" ] && curl -sfS -X POST "$url" || true
+          done

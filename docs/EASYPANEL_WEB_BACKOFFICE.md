@@ -2,6 +2,8 @@
 
 Para que se vean la **WebApp** y el **Backoffice** además del bot, creá dos apps más en Easypanel (mismo repo, otro Dockerfile).
 
+**Deploy automático al hacer push:** ver [EASYPANEL_DEPLOY.md](./EASYPANEL_DEPLOY.md) (integración GitHub en Easypanel o webhooks desde GitHub Actions).
+
 ## 1. WebApp (app para usuarios)
 
 - **Nueva App** → Origen: **Git** (mismo repo que el bot).
