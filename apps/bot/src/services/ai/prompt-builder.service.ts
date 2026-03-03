@@ -16,7 +16,7 @@ export class PromptBuilderService {
   buildCheckInPrompt(
     user: UserWithRelations,
     checkInData: { sleep: number; energy: number; mood: string; willTrain: boolean },
-    recentConversations: Conversation[]
+    recentConversations: Array<{ role: string; message: string }>
   ): { system: string; user: string } {
     const contextParts: string[] = []
 

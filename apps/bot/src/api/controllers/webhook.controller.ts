@@ -282,7 +282,7 @@ async function handleCheckIn(
   }
 
   const checkIn = await checkInService.create({
-    userId,
+    user: { connect: { id: userId } },
     sleep: parsed.sleep,
     energy: parsed.energy,
     mood: parsed.mood,
@@ -297,6 +297,7 @@ async function handleCheckIn(
   if (!user) return `Check-in guardado. ¡Seguimos!`
 
   const recentConversations = await contextService.getConversationHistory(userId, 3)
+  const conversationsForPrompt = recentConversations.map((m) => ({ role: m.role, message: m.content }))
   const { system, user: userPrompt } = promptBuilderService.buildCheckInPrompt(
     user as any,
     {
@@ -305,7 +306,7 @@ async function handleCheckIn(
       mood: parsed.mood,
       willTrain: parsed.willTrain,
     },
-    recentConversations
+    conversationsForPrompt
   )
 
   const response = await aiService.generateResponseWithPrompt(system, userPrompt)
