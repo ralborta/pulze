@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
-import { userService, prisma } from '@pulze/database'
-import { aiService, contextService, contextUpdater } from '../../services/ai'
+import { userService, prisma, checkInService } from '@pulze/database'
+import { aiService, contextService, contextUpdater, promptBuilderService } from '../../services/ai'
+import { parseCheckInMessage } from '../../utils/checkin-parser'
 
 /**
  * Tipos de eventos de BuilderBot
@@ -204,29 +205,117 @@ async function handleNewUser(phone: string, message: string): Promise<string> {
 }
 
 /**
- * Manejar onboarding en progreso
+ * Manejar onboarding paso a paso.
+ * Detecta el paso actual (nombre → objetivo → restricciones), actualiza el usuario y genera la siguiente pregunta con IA.
  */
 async function handleOnboarding(
   userId: string,
   message: string,
-  intent?: string
+  _intent?: string
 ): Promise<string> {
-  // TODO: Implementar lógica de onboarding paso por paso
-  // Por ahora, respuesta placeholder
-  return `Gracias por tu respuesta. Continuemos con tu perfil...`
+  const user = await userService.findById(userId)
+  if (!user) return `Algo falló. ¿Podés escribirme de nuevo?`
+
+  const msg = (message || '').trim()
+  if (!msg) return `Escribime algo así puedo conocerte un poco mejor 😊`
+
+  // Paso 1: nombre pendiente → el mensaje es el nombre
+  if (user.name === 'pendiente') {
+    await userService.update(userId, { name: msg })
+    const { system, user: userPrompt } = promptBuilderService.buildOnboardingPrompt('goal', {
+      ...user,
+      name: msg,
+    })
+    const response = await aiService.generateResponseWithPrompt(system, userPrompt)
+    return response.content
+  }
+
+  // Paso 2: objetivo pendiente → el mensaje es el objetivo
+  if (user.goal === 'pendiente') {
+    await userService.update(userId, { goal: msg })
+    const { system, user: userPrompt } = promptBuilderService.buildOnboardingPrompt('restrictions', {
+      ...user,
+      goal: msg,
+    })
+    const response = await aiService.generateResponseWithPrompt(system, userPrompt)
+    return response.content
+  }
+
+  // Paso 3: restricciones no definidas → el mensaje son las restricciones (o "ninguna")
+  if (user.restrictions == null || user.restrictions === '') {
+    const restrictions = /ningun[oa]|nada|no tengo/i.test(msg) ? 'Ninguna' : msg
+    await userService.update(userId, {
+      restrictions: restrictions === 'Ninguna' ? null : restrictions,
+      onboardingComplete: true,
+    })
+    const { system, user: userPrompt } = promptBuilderService.buildOnboardingPrompt('schedule', {
+      ...user,
+      restrictions: restrictions === 'Ninguna' ? undefined : restrictions,
+    })
+    const response = await aiService.generateResponseWithPrompt(system, userPrompt)
+    return response.content
+  }
+
+  // Ya completó onboarding pero el flag no se actualizó
+  await userService.update(userId, { onboardingComplete: true })
+  return `Ya tenés todo listo. Cuando quieras hacer tu primer check-in, escribime. 😊`
 }
 
 /**
- * Manejar check-in diario
+ * Manejar check-in diario.
+ * Parsea el mensaje (ej. "4, 3, bien, sí"), guarda CheckIn, arma prompt y responde con IA.
  */
 async function handleCheckIn(
   userId: string,
   message: string,
   entities?: Record<string, any>
 ): Promise<string> {
-  // TODO: Implementar lógica de check-in
-  // Por ahora, respuesta placeholder
-  return `¡Perfecto! Registrando tu check-in...`
+  const parsed = parseCheckInMessage(message)
+
+  if (!parsed) {
+    return `Para tu check-in diario, escribime así:\n1️⃣ Sueño (1-5)\n2️⃣ Energía (1-5)\n3️⃣ Cómo estás en una palabra\n4️⃣ ¿Entrenás hoy? (sí/no)\n\nEjemplo: 4, 3, bien, sí`
+  }
+
+  const alreadyToday = await checkInService.hasCheckInToday(userId)
+  if (alreadyToday) {
+    return `Ya registraste tu check-in de hoy. Si querés contarme algo más, escribime 😊`
+  }
+
+  const checkIn = await checkInService.create({
+    userId,
+    sleep: parsed.sleep,
+    energy: parsed.energy,
+    mood: parsed.mood,
+    willTrain: parsed.willTrain,
+    trainedToday: false,
+  })
+
+  const streak = await checkInService.calculateStreak(userId)
+  await userService.updateStreak(userId, streak)
+
+  const user = await userService.findById(userId)
+  if (!user) return `Check-in guardado. ¡Seguimos!`
+
+  const recentConversations = await contextService.getConversationHistory(userId, 3)
+  const { system, user: userPrompt } = promptBuilderService.buildCheckInPrompt(
+    user as any,
+    {
+      sleep: parsed.sleep,
+      energy: parsed.energy,
+      mood: parsed.mood,
+      willTrain: parsed.willTrain,
+    },
+    recentConversations
+  )
+
+  const response = await aiService.generateResponseWithPrompt(system, userPrompt)
+
+  await prisma.checkIn.update({
+    where: { id: checkIn.id },
+    data: { aiResponse: response.content },
+  })
+
+  return response.content
 }
 
 /**

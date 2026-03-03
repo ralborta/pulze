@@ -80,6 +80,39 @@ export class AIService {
   }
 
   /**
+   * Generar respuesta usando un prompt completo (system + user) del PromptBuilder.
+   * Para check-in, onboarding, etc., cuando ya tenemos system y user armados.
+   */
+  async generateResponseWithPrompt(
+    systemPrompt: string,
+    userMessage: string
+  ): Promise<AIResponse> {
+    try {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage },
+        ],
+        temperature: 0.8,
+        max_tokens: 300,
+      })
+      const content = completion.choices[0].message.content || ''
+      return {
+        content,
+        usage: {
+          promptTokens: completion.usage?.prompt_tokens || 0,
+          completionTokens: completion.usage?.completion_tokens || 0,
+          totalTokens: completion.usage?.total_tokens || 0,
+        },
+      }
+    } catch (error: any) {
+      console.error('Error generateResponseWithPrompt:', error)
+      throw new Error('Error al generar respuesta')
+    }
+  }
+
+  /**
    * Generar resumen breve de conversación (resumen anterior + último intercambio → nuevo resumen).
    * Para actualizar UserContext.aiSummary después de cada interacción.
    */

@@ -13,6 +13,7 @@ OPENAI_API_KEY="sk-..."
 
 # BuilderBot.app (WhatsApp Integration)
 BUILDERBOT_API_KEY="bb_live_..."
+BUILDERBOT_BOT_ID="tu_bot_id"          # Identificador del bot en BuilderBot (obligatorio)
 BUILDERBOT_WEBHOOK_SECRET="webhook_secret_..."
 BUILDERBOT_API_URL="https://api.builderbot.app/v1"
 
@@ -33,9 +34,9 @@ PORT=3001
 
 1. Create account at https://app.builderbot.app
 2. Connect your WhatsApp Business number
-3. Get your API Key from Settings → API
+3. Get your **API Key** and **Bot ID** from Settings → API (el Bot ID identifica tu bot)
 4. Get your Webhook Secret from Settings → Webhooks
-5. Configure webhook URL: `https://your-railway-bot.up.railway.app/api/webhooks/builderbot`
+5. Configure webhook URL: `https://your-api-url/api/webhooks/builderbot`
 6. Enable events: `message`, `status`, `media`
 7. Test connection with: `GET /api/webhooks/builderbot/health`
 

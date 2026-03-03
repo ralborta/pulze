@@ -7,12 +7,17 @@ import axios, { AxiosInstance } from 'axios'
 export class BuilderBotClient {
   private client: AxiosInstance
   private apiKey: string
+  private botId: string
 
   constructor() {
     this.apiKey = process.env.BUILDERBOT_API_KEY || ''
-    
+    this.botId = process.env.BUILDERBOT_BOT_ID || ''
+
     if (!this.apiKey) {
       console.warn('⚠️ BUILDERBOT_API_KEY no configurado')
+    }
+    if (!this.botId) {
+      console.warn('⚠️ BUILDERBOT_BOT_ID no configurado (necesario para identificar el bot)')
     }
 
     this.client = axios.create({
@@ -25,6 +30,22 @@ export class BuilderBotClient {
     })
   }
 
+  private getMessagesPath(): string {
+    return this.botId ? `/bots/${this.botId}/messages/send` : '/messages/send'
+  }
+
+  private getTemplatePath(): string {
+    return this.botId ? `/bots/${this.botId}/messages/template` : '/messages/template'
+  }
+
+  private getStatusPath(messageId: string): string {
+    return this.botId ? `/bots/${this.botId}/messages/${messageId}/status` : `/messages/${messageId}/status`
+  }
+
+  private getWebhookPath(): string {
+    return this.botId ? `/bots/${this.botId}/webhooks/config` : '/webhooks/config'
+  }
+
   /**
    * Enviar mensaje de texto a un usuario
    */
@@ -34,7 +55,7 @@ export class BuilderBotClient {
     buttons?: Array<{ id: string; text: string }>
   }): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
-      const response = await this.client.post('/messages/send', {
+      const response = await this.client.post(this.getMessagesPath(), {
         phone: params.phone,
         message: params.message,
         buttons: params.buttons || [],
@@ -63,7 +84,7 @@ export class BuilderBotClient {
     caption?: string
   }): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
-      const response = await this.client.post('/messages/send', {
+      const response = await this.client.post(this.getMessagesPath(), {
         phone: params.phone,
         message: params.message,
         media: {
@@ -95,7 +116,7 @@ export class BuilderBotClient {
     variables: Record<string, string>
   }): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
-      const response = await this.client.post('/messages/template', {
+      const response = await this.client.post(this.getTemplatePath(), {
         phone: params.phone,
         template_id: params.templateId,
         variables: params.variables,
@@ -123,7 +144,7 @@ export class BuilderBotClient {
     error?: string
   }> {
     try {
-      const response = await this.client.get(`/messages/${messageId}/status`)
+      const response = await this.client.get(this.getStatusPath(messageId))
 
       return {
         success: true,
@@ -143,7 +164,7 @@ export class BuilderBotClient {
    */
   async configureWebhook(webhookUrl: string): Promise<{ success: boolean; error?: string }> {
     try {
-      await this.client.post('/webhooks/config', {
+      await this.client.post(this.getWebhookPath(), {
         url: webhookUrl,
         events: ['message', 'status', 'media'],
       })

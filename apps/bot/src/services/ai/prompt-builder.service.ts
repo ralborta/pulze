@@ -1,37 +1,13 @@
 import { UserWithRelations, CheckIn, Conversation } from '@pulze/database'
+import { COACH_SYSTEM_PROMPT } from './prompts'
 
 /**
  * PromptBuilderService - Construye prompts dinámicos y personalizados
- * 
- * Este es el corazón de la diferenciación de PULZE:
- * - Prompts contextuales (historia, patrones, preferencias)
- * - Prompts optimizados por tipo de interacción
- * - Memoria de conversación con resumen inteligente
+ * Usa COACH_SYSTEM_PROMPT como base e inyecta contexto y tareas.
  */
 export class PromptBuilderService {
-  /**
-   * Prompt base del sistema (identidad de PULZE)
-   */
   private getSystemIdentity(): string {
-    return `Eres PULZE, un coach personal de bienestar en WhatsApp.
-
-**Tu propósito:**
-Acompañar a las personas en su transformación física, mental y emocional con:
-- Constancia diaria (check-ins cortos y útiles)
-- Recomendaciones personalizadas (entrenamiento, nutrición, descanso, mentalidad)
-- Empatía y motivación genuina (no robótico, humano)
-
-**Tu estilo:**
-- Conversacional y cercano (tuteo)
-- Respuestas breves y accionables (2-3 párrafos máximo)
-- Emojis moderados (1-2 por mensaje)
-- Positivo pero realista (no frases genéricas)
-
-**Tus límites:**
-- NO eres médico ni psicólogo (no diagnosticas)
-- NO das planes sin contexto suficiente
-- SI tienes dudas, preguntas antes de recomendar
-`
+    return COACH_SYSTEM_PROMPT
   }
 
   /**

@@ -201,7 +201,7 @@ Los generás en n8n, los exportás (JSON) y los subís/importás donde correspon
 
 ## 5. Variables de entorno (recordatorio)
 
-- **Backend:** `DATABASE_URL`, `OPENAI_API_KEY`, `BUILDERBOT_*`, `PORT=3001`, `N8N_API_KEY` o `API_KEY` (para que n8n llame a los endpoints bajo `/api/n8n`).
+- **Backend:** `DATABASE_URL`, `OPENAI_API_KEY`, `BUILDERBOT_API_KEY`, `BUILDERBOT_BOT_ID`, `BUILDERBOT_WEBHOOK_SECRET`, `BUILDERBOT_API_URL`, `PORT=3001`, `N8N_API_KEY` o `API_KEY`.
 - **n8n:** Variable `API_URL` (base de la API, ej. `https://tu-api.com`), `API_KEY` (mismo valor que `N8N_API_KEY` en el backend; header `X-API-Key` o `Authorization: Bearer <key>`).
 
 ---
