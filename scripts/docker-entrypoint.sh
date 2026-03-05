@@ -5,5 +5,7 @@ if [ -n "$DATABASE_URL" ] && [ -d /app/packages/database ]; then
   echo "Running Prisma migrations..."
   cd /app/packages/database && npx prisma migrate deploy
   cd /app
+else
+  echo "Skipping migrations: DATABASE_URL not set or packages/database missing"
 fi
 exec node apps/bot/dist/app.js
