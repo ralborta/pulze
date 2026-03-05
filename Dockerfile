@@ -14,6 +14,8 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages ./packages
 COPY apps/bot ./apps/bot
+COPY scripts/docker-entrypoint.sh ./scripts/
+RUN chmod +x ./scripts/docker-entrypoint.sh
 
 # Install y generar Prisma
 RUN pnpm install && pnpm --filter @pulze/database run generate
@@ -27,5 +29,5 @@ RUN pnpm run build:bot
 # Expose port
 EXPOSE 3001
 
-# Start the bot
-CMD ["node", "apps/bot/dist/app.js"]
+# Al arrancar: aplicar migraciones (si DATABASE_URL está definida) y luego iniciar el bot
+CMD ["./scripts/docker-entrypoint.sh"]

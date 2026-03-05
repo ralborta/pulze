@@ -1,0 +1,17 @@
+# Postgres local para desarrollo y para correr migraciones desde tu máquina
+# Uso: docker compose up -d   luego  DATABASE_URL=... pnpm prisma migrate deploy
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pulze-db
+    environment:
+      POSTGRES_USER: pulze
+      POSTGRES_PASSWORD: pulze
+      POSTGRES_DB: pulze
+    ports:
+      - "5432:5432"
+    volumes:
+      - pulze_pgdata:/var/lib/postgresql/data
+
+volumes:
+  pulze_pgdata:
