@@ -5,11 +5,13 @@ import { parseCheckInMessage } from '../../utils/checkin-parser'
 
 /**
  * Tipos de eventos de BuilderBot
+ * BuilderBot puede enviar el texto en "message" o en "body"
  */
 interface BuilderBotMessage {
   event: 'message' | 'status' | 'media'
   from: string
   message?: string
+  body?: string
   type?: 'text' | 'image' | 'audio' | 'video' | 'document'
   
   // Procesamiento de IA de BuilderBot
@@ -45,29 +47,39 @@ export async function handleBuilderBotWebhook(req: Request, res: Response) {
   try {
     const event: BuilderBotMessage = req.body
 
+    // Log para debug: qué envía BuilderBot (si no llega nada, el problema está antes del backend)
+    const eventType = event?.event ?? 'message'
+    const from = event?.from ?? (req.body as any)?.from
+    const hasMessage = !!(event?.message ?? event?.body ?? (req.body as any)?.body ?? (req.body as any)?.message)
     console.log('📩 Webhook recibido:', {
-      event: event.event,
-      from: event.from,
-      type: event.type,
-      intent: event.intent,
+      event: eventType,
+      from,
+      hasMessage,
+      keys: Object.keys(req.body || {}),
     })
 
-    // Manejar según tipo de evento
-    switch (event.event) {
+    // Si no viene event, asumir mensaje de texto (algunas configs envían directo)
+    const ev = { ...event, event: eventType }
+
+    switch (ev.event) {
       case 'message':
-        await handleIncomingMessage(event, res)
+        await handleIncomingMessage(ev, res)
         break
 
       case 'status':
-        await handleMessageStatus(event, res)
+        await handleMessageStatus(ev, res)
         break
 
       case 'media':
-        await handleMediaMessage(event, res)
+        await handleMediaMessage(ev, res)
         break
 
       default:
-        res.status(200).json({ received: true })
+        if (from && hasMessage) {
+          await handleIncomingMessage(ev, res)
+        } else {
+          res.status(200).json({ received: true })
+        }
     }
   } catch (error: any) {
     console.error('❌ Error en webhook:', error)
@@ -78,24 +90,42 @@ export async function handleBuilderBotWebhook(req: Request, res: Response) {
   }
 }
 
+/** Normalizar teléfono para búsqueda/creación (quitar + y espacios) */
+function normalizePhone(phone: string): string {
+  if (!phone || typeof phone !== 'string') return ''
+  return phone.replace(/\s+/g, '').replace(/^\+/, '').trim()
+}
+
 /**
  * Manejar mensaje entrante
+ * Acepta texto en event.message o event.body (BuilderBot puede usar cualquiera)
  */
 async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
-  const { from, message, intent, entities, type } = event
+  const text = (event.message ?? event.body ?? '').trim()
+  const phone = normalizePhone(event.from)
+  const { intent, entities, type } = event
 
-  // 1. Buscar o crear usuario
-  let user = await userService.findByPhone(from)
+  if (!phone) {
+    console.warn('⚠️ Webhook sin "from" válido:', event.from)
+    return res.status(400).json({ error: 'from required' })
+  }
+
+  // 1. Buscar o crear usuario (siempre por teléfono normalizado)
+  let user = await userService.findByPhone(phone)
+  if (!user && event.from !== phone) {
+    user = await userService.findByPhone(event.from)
+  }
 
   // Si es usuario nuevo, iniciar onboarding
   if (!user) {
-    const response = await handleNewUser(from, message || '')
+    const response = await handleNewUser(phone, text)
+    console.log('🆕 Usuario nuevo, respuesta onboarding:', response?.slice(0, 80) + '...')
     return res.json({ message: response })
   }
 
   // Si no completó onboarding, continuar onboarding
   if (!user.onboardingComplete) {
-    const response = await handleOnboarding(user.id, message || '', intent)
+    const response = await handleOnboarding(user.id, text, intent)
     return res.json({ message: response })
   }
 
@@ -105,7 +135,7 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
       data: {
         userId: user.id,
         role: 'user',
-        message: message || '',
+        message: text,
         metadata: { intent, entities, type, operatorMode: true },
       },
     })
@@ -124,7 +154,7 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     data: {
       userId: user.id,
       role: 'user',
-      message: message || '',
+      message: text,
       metadata: { intent, entities, type },
     },
   })
@@ -141,18 +171,18 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
   // 4. Decidir tipo de respuesta según intent
   let response: string
 
-  if (intent === 'checkin' || message?.toLowerCase().includes('check')) {
+  if (intent === 'checkin' || text.toLowerCase().includes('check')) {
     // Check-in diario
-    response = await handleCheckIn(user.id, message || '', entities)
+    response = await handleCheckIn(user.id, text, entities)
   } else if (intent === 'consulta_nutricion') {
     // Consulta sobre nutrición
-    response = await handleNutritionQuery(user, message || '', entities)
+    response = await handleNutritionQuery(user, text, entities)
   } else if (intent === 'consulta_entreno') {
     // Consulta sobre entrenamiento
-    response = await handleTrainingQuery(user, message || '', entities)
+    response = await handleTrainingQuery(user, text, entities)
   } else {
     // Conversación general
-    response = await handleGeneralConversation(user, message || '', intent)
+    response = await handleGeneralConversation(user, text, intent)
   }
 
   // 5. Guardar respuesta en conversación
@@ -166,7 +196,7 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
   })
 
   // 5b. Actualizar resumen de conversación (para usar en el próximo prompt)
-  await contextUpdater.updateConversationSummary(user.id, message || '', response)
+  await contextUpdater.updateConversationSummary(user.id, text, response)
 
   // 6. Actualizar stats
   await prisma.userStats.update({
