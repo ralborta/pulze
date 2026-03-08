@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { userService, prisma, checkInService } from '@pulze/database'
 import { aiService, contextService, contextUpdater, promptBuilderService } from '../../services/ai'
 import { parseCheckInMessage } from '../../utils/checkin-parser'
+import { builderBotClient } from '../../services/builderbot'
 
 /**
  * Tipos de eventos de BuilderBot
@@ -55,8 +56,16 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
 
   const fromRaw = raw.from ?? data.from ?? data.phone ?? data.sender ?? data.wa_id ?? data.contact?.wa_id ?? ''
   const from = typeof fromRaw === 'string' ? fromRaw : String(fromRaw?.id ?? fromRaw?.wa_id ?? fromRaw ?? '')
-  const messageRaw = raw.message ?? raw.body ?? data.message ?? data.body ?? data.text ?? data.content ?? data.message?.body
-  const message = typeof messageRaw === 'string' ? messageRaw : (messageRaw?.text ?? messageRaw?.body ?? messageRaw?.content ?? '')
+
+  // Mensaje: puede ser string o objeto (ej. { body }, { text: { body } }) y varios nombres
+  const messageRaw =
+    raw.message ?? raw.body ??
+    data.message ?? data.body ?? data.text ?? data.content ?? data.respMessage ?? data.answer ?? data.keyword ??
+    data.message?.body ?? data.message?.text?.body ?? data.message?.text
+  const message =
+    typeof messageRaw === 'string'
+      ? messageRaw
+      : (messageRaw?.text?.body ?? messageRaw?.text ?? messageRaw?.body ?? messageRaw?.content ?? '')
   const event = (eventName === 'message' || eventName === 'status' || eventName === 'media')
     ? eventName
     : (from && (message || data.media)) ? 'message' : 'message'
@@ -133,6 +142,19 @@ function normalizePhone(phone: string): string {
 }
 
 /**
+ * Envía la respuesta por la API de BuilderBot para que llegue a WhatsApp.
+ * Así no dependemos de que BuilderBot use el body del webhook para enviar.
+ */
+async function sendReplyViaBuilderBot(phone: string, message: string | null): Promise<void> {
+  if (!message?.trim() || !phone) return
+  const to = phone.includes('+') ? phone : `+${phone}`
+  const result = await builderBotClient.sendMessage({ phone: to, message })
+  if (!result.success) {
+    console.error('❌ BuilderBot sendMessage falló:', result.error, { phone: to.slice(0, 6) + '***' })
+  }
+}
+
+/**
  * Manejar mensaje entrante
  * Acepta texto en event.message o event.body (BuilderBot puede usar cualquiera)
  */
@@ -156,12 +178,14 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
   if (!user) {
     const response = await handleNewUser(phone, text)
     console.log('🆕 Usuario nuevo, respuesta onboarding:', response?.slice(0, 80) + '...')
+    await sendReplyViaBuilderBot(event.from, response)
     return res.json({ message: response })
   }
 
   // Si no completó onboarding, continuar onboarding
   if (!user.onboardingComplete) {
     const response = await handleOnboarding(user.id, text, intent)
+    await sendReplyViaBuilderBot(event.from, response)
     return res.json({ message: response })
   }
 
@@ -251,6 +275,8 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     },
   })
 
+  // 8. Enviar por API de BuilderBot para que llegue a WhatsApp (no solo devolver en webhook)
+  await sendReplyViaBuilderBot(event.from, response)
   res.json({ message: response })
 }
 
@@ -519,6 +545,7 @@ async function handleMediaMessage(event: BuilderBotMessage, res: Response) {
         : ''
     }¿Cómo estuvo? ¿Te sentiste satisfecho/a?`
 
+    await sendReplyViaBuilderBot(event.from, response)
     return res.json({ message: response })
   }
 
