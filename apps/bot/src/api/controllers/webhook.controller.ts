@@ -40,25 +40,61 @@ interface BuilderBotMessage {
 }
 
 /**
+ * Normaliza el body del webhook: BuilderBot puede enviar
+ * - formato directo: { event, from, message, ... }
+ * - formato con data: { eventName, data: { from, message, ... }, projectId }
+ */
+function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: string } {
+  const raw = body || {}
+  const data = raw.data || {}
+  const eventName = raw.eventName ?? raw.event
+
+  if (Object.keys(data).length > 0 && !raw.from && !raw.message && !raw.body) {
+    console.log('📦 Payload con data:', Object.keys(data))
+  }
+
+  const fromRaw = raw.from ?? data.from ?? data.phone ?? data.sender ?? data.wa_id ?? data.contact?.wa_id ?? ''
+  const from = typeof fromRaw === 'string' ? fromRaw : String(fromRaw?.id ?? fromRaw?.wa_id ?? fromRaw ?? '')
+  const messageRaw = raw.message ?? raw.body ?? data.message ?? data.body ?? data.text ?? data.content ?? data.message?.body
+  const message = typeof messageRaw === 'string' ? messageRaw : (messageRaw?.text ?? messageRaw?.body ?? messageRaw?.content ?? '')
+  const event = (eventName === 'message' || eventName === 'status' || eventName === 'media')
+    ? eventName
+    : (from && (message || data.media)) ? 'message' : 'message'
+
+  return {
+    ...raw,
+    ...data,
+    event,
+    from,
+    message: message || '',
+    body: raw.body ?? data.body ?? message,
+    type: raw.type ?? data.type ?? 'text',
+    intent: raw.intent ?? data.intent,
+    entities: raw.entities ?? data.entities,
+    timestamp: raw.timestamp ?? data.timestamp ?? new Date().toISOString(),
+  }
+}
+
+/**
  * POST /api/webhooks/builderbot
  * Recibe mensajes de WhatsApp procesados por BuilderBot
  */
 export async function handleBuilderBotWebhook(req: Request, res: Response) {
   try {
-    const event: BuilderBotMessage = req.body
+    const event = normalizeBuilderBotPayload(req.body) as BuilderBotMessage & { event: string }
 
-    // Log para debug: qué envía BuilderBot (si no llega nada, el problema está antes del backend)
-    const eventType = event?.event ?? 'message'
-    const from = event?.from ?? (req.body as any)?.from
-    const hasMessage = !!(event?.message ?? event?.body ?? (req.body as any)?.body ?? (req.body as any)?.message)
+    const eventType = event.event ?? 'message'
+    const from = event.from
+    const text = (event.message ?? event.body ?? '').trim()
+    const hasMessage = !!text
+
     console.log('📩 Webhook recibido:', {
       event: eventType,
-      from,
+      from: from || '(vacío)',
       hasMessage,
       keys: Object.keys(req.body || {}),
     })
 
-    // Si no viene event, asumir mensaje de texto (algunas configs envían directo)
     const ev = { ...event, event: eventType }
 
     switch (ev.event) {
