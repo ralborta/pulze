@@ -142,11 +142,12 @@ function normalizePhone(phone: string): string {
 }
 
 /**
- * Envía la respuesta por la API de BuilderBot para que llegue a WhatsApp.
- * Así no dependemos de que BuilderBot use el body del webhook para enviar.
+ * Envía la respuesta por la API de BuilderBot si BUILDERBOT_API_URL está configurada.
+ * Si no, solo se devuelve la respuesta en el webhook (BuilderBot puede usarla para enviar).
  */
 async function sendReplyViaBuilderBot(phone: string, message: string | null): Promise<void> {
   if (!message?.trim() || !phone) return
+  if (!builderBotClient.canSend()) return
   const to = phone.includes('+') ? phone : `+${phone}`
   const result = await builderBotClient.sendMessage({ phone: to, message })
   if (!result.success) {
