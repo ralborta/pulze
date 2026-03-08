@@ -9,13 +9,14 @@ export class BuilderBotClient {
   private apiKey: string
   private botId: string
 
-  /** Base URL de la API (sin /v1). Si no está configurada, no se pueden enviar mensajes por API. */
+  /** Base URL de la API (sin /v1). Por defecto wa-api.builderbot.app (BuilderBot Cloud). */
   private baseURL: string
 
   constructor() {
     this.apiKey = process.env.BUILDERBOT_API_KEY || ''
     this.botId = process.env.BUILDERBOT_BOT_ID || ''
-    this.baseURL = (process.env.BUILDERBOT_API_URL || '').replace(/\/$/, '')
+    const envUrl = (process.env.BUILDERBOT_API_URL || '').replace(/\/$/, '')
+    this.baseURL = envUrl || 'https://wa-api.builderbot.app'
 
     if (!this.apiKey) {
       console.warn('⚠️ BUILDERBOT_API_KEY no configurado')
@@ -23,12 +24,9 @@ export class BuilderBotClient {
     if (!this.botId) {
       console.warn('⚠️ BUILDERBOT_BOT_ID no configurado (necesario para identificar el bot)')
     }
-    if (!this.baseURL) {
-      console.warn('⚠️ BUILDERBOT_API_URL no configurada: no se enviarán respuestas por API. Obtené la URL base en BuilderBot (consola/docs) y configurala para que el mensaje llegue a WhatsApp.')
-    }
 
     this.client = axios.create({
-      baseURL: this.baseURL ? `${this.baseURL}/v1` : 'http://localhost',
+      baseURL: `${this.baseURL}/v1`.replace(/\/v1\/v1$/, '/v1'),
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
@@ -42,7 +40,11 @@ export class BuilderBotClient {
     return !!(this.baseURL && this.apiKey && this.botId)
   }
 
+  /** BuilderBot Cloud usa POST /v1/messages; otra API puede usar /bots/:id/messages/send */
   private getMessagesPath(): string {
+    if (this.baseURL.includes('wa-api.builderbot.app')) {
+      return '/messages'
+    }
     return this.botId ? `/bots/${this.botId}/messages/send` : '/messages/send'
   }
 
@@ -73,11 +75,11 @@ export class BuilderBotClient {
       }
     }
     try {
-      const response = await this.client.post(this.getMessagesPath(), {
-        phone: params.phone,
-        message: params.message,
-        buttons: params.buttons || [],
-      })
+      const path = this.getMessagesPath()
+      const body = path === '/messages'
+        ? { number: params.phone.replace(/^\+/, ''), message: params.message }
+        : { phone: params.phone, message: params.message, buttons: params.buttons || [] }
+      const response = await this.client.post(path, body)
 
       return {
         success: true,
