@@ -13,6 +13,7 @@ Documento único con todo lo acordado: backend, n8n como orquestador, operador h
 | Puerto API | 3001 (como hasta ahora). |
 | Contexto para prompts | No guardar toda la interacción; generar un **resumen** después de cada interacción y usar ese resumen (+ último mensaje) en el prompt. |
 | Operador humano | Backend debe permitir activar/desactivar el bot por usuario para que un operador pueda atender al usuario final. |
+| BuilderBot | Usamos **BuilderBot Cloud** (app de pago por suscripción, app.builderbot.cloud), no el proyecto open-source. |
 
 ---
 

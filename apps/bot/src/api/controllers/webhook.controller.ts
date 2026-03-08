@@ -142,6 +142,22 @@ function normalizePhone(phone: string): string {
 }
 
 /**
+ * Respuesta estándar del webhook para que BuilderBot use en "Petición HTTP" → Respuesta.
+ * Incluye variables para reglas y "Enviar a otro flow" (ej. flow === "onboarding").
+ */
+function webhookPayload(
+  message: string | null,
+  opts: { flow: string; registered: boolean; nombre?: string | null }
+): { message: string | null; flow: string; registered: boolean; nombre: string | null } {
+  return {
+    message: message ?? null,
+    flow: opts.flow,
+    registered: opts.registered,
+    nombre: opts.nombre ?? null,
+  }
+}
+
+/**
  * Envía la respuesta por la API de BuilderBot si BUILDERBOT_API_URL está configurada.
  * Si no, solo se devuelve la respuesta en el webhook (BuilderBot puede usarla para enviar).
  */
@@ -175,19 +191,21 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     user = await userService.findByPhone(event.from)
   }
 
-  // Si es usuario nuevo, iniciar onboarding
+  // Si es usuario nuevo, iniciar onboarding → BuilderBot usa flow "onboarding"
   if (!user) {
     const response = await handleNewUser(phone, text)
     console.log('🆕 Usuario nuevo, respuesta onboarding:', response?.slice(0, 80) + '...')
     await sendReplyViaBuilderBot(event.from, response)
-    return res.json({ message: response })
+    return res.json(webhookPayload(response, { flow: 'onboarding', registered: false }))
   }
 
-  // Si no completó onboarding, continuar onboarding
+  // Si no completó onboarding → BuilderBot usa flow "onboarding"
   if (!user.onboardingComplete) {
     const response = await handleOnboarding(user.id, text, intent)
     await sendReplyViaBuilderBot(event.from, response)
-    return res.json({ message: response })
+    return res.json(
+      webhookPayload(response, { flow: 'onboarding', registered: true, nombre: user.name })
+    )
   }
 
   // Si el bot está desactivado (operador humano atiende), solo guardar mensaje y no responder
@@ -207,7 +225,9 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
         lastActiveDate: new Date(),
       },
     })
-    return res.status(200).json({ message: null })
+    return res
+      .status(200)
+      .json(webhookPayload(null, { flow: 'operator', registered: true, nombre: user.name }))
   }
 
   // 2. Guardar mensaje en conversación
@@ -278,7 +298,9 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
 
   // 8. Enviar por API de BuilderBot para que llegue a WhatsApp (no solo devolver en webhook)
   await sendReplyViaBuilderBot(event.from, response)
-  res.json({ message: response })
+  res.json(
+    webhookPayload(response, { flow: 'menu', registered: true, nombre: user.name })
+  )
 }
 
 /**
@@ -547,11 +569,13 @@ async function handleMediaMessage(event: BuilderBotMessage, res: Response) {
     }¿Cómo estuvo? ¿Te sentiste satisfecho/a?`
 
     await sendReplyViaBuilderBot(event.from, response)
-    return res.json({ message: response })
+    return res.json(
+      webhookPayload(response, { flow: 'menu', registered: true, nombre: user.name })
+    )
   }
 
   // Para otros tipos de imágenes
-  res.json({
-    message: 'Recibí tu imagen 👍',
-  })
+  res.json(
+    webhookPayload('Recibí tu imagen 👍', { flow: 'menu', registered: true, nombre: user.name })
+  )
 }
