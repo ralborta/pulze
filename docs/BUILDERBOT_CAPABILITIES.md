@@ -306,6 +306,23 @@ Para implementarlo solo falta revisar en la **consola y documentación de Builde
 
 Es decir: **la consulta a la DB la hace PULZE en el webhook**; BuilderBot solo hace HTTP a nuestra URL y usa la respuesta.
 
+### Qué debe hacer BuilderBot cuando llega un mensaje (onboarding o no)
+
+Para **cada** mensaje entrante del usuario (onboarding, menú, check-in, lo que sea), BuilderBot debe hacer **solo esto**:
+
+| Paso | Acción en BuilderBot |
+|------|----------------------|
+| 1 | **Trigger:** mensaje entrante (cualquier texto del usuario). |
+| 2 | **Petición HTTP** (POST) a la URL del webhook de PULZE. |
+| 3 | **Body del POST:** enviar al menos `from` (teléfono) y el **contenido del mensaje** (ej. `message` o `body` = lo que escribió el usuario). Ejemplo: `{ "from": "5491133788190", "message": "Soy Raúl, quiero tonificar" }`. |
+| 4 | **Recibir la respuesta** de PULZE: `{ message, flow, registered, nombre }`. |
+| 5 | **Enviar al cliente** el texto que viene en `message` (esa es la única respuesta que ve el usuario). |
+| 6 | **(Opcional)** Usar `flow`, `registered`, `nombre` para reglas o para cambiar de flow en BuilderBot (ej. si `flow === "onboarding"` ir al flow OnBoarding; si `flow === "operator"` no enviar mensaje). |
+
+No debe hacer otra cosa con ese mismo mensaje (no llamar a ChatPDF, ni a otro OpenAI, ni a otro flow que también envíe mensaje). Un mensaje entrante → una llamada a PULZE → una respuesta al usuario.
+
+---
+
 ### Flujo con verificación de registro (integrado)
 
 1. **Trigger en BuilderBot**: cualquier mensaje entrante (o "hola").
@@ -356,6 +373,15 @@ Así **verificar registro = llamar al webhook de PULZE**; la lógica y la DB sig
 No hace falta que BuilderBot tenga su propia base de datos para “verificar registro”: **esa verificación la hace PULZE en el webhook**. Solo tenés que configurar en BuilderBot que el primer paso del flow sea llamar a nuestra API y usar la respuesta para decidir el siguiente flow.
 
 **Nota:** Nuestro webhook actual ya consulta la DB y devuelve `{ message }`. Para que BuilderBot use los flows inicio/menu/nutricion y solo pida "qué flow y qué variables", se puede extender la respuesta con `flow`, `registered`, `nombre`, o crear un endpoint `/api/webhooks/builderbot/route` que solo devuelva esas variables.
+
+### ⚠️ Evitar doble respuesta (un solo flujo por mensaje)
+
+Si el usuario recibe **2 o más mensajes** por cada mensaje que envía (p. ej. saludo + otra pregunta repetida, o mensajes tipo "no veo tu mensaje"), suele ser porque **el mismo mensaje entrante dispara más de un flujo** en BuilderBot:
+
+- **Flujo correcto:** Mensaje entrante → **solo** Petición HTTP a PULZE → usar la variable `message` de la respuesta para **Enviar al cliente**. Una sola respuesta.
+- **Problema:** Si además tenés otro módulo/plugin (p. ej. **ChatPDF**, OpenAI Assistant, otro flow por "mensaje entrante") configurado para el mismo trigger, ese segundo flujo también envía un mensaje → el usuario ve 2 respuestas y preguntas repetidas.
+
+**Qué hacer:** Para el trigger "mensaje entrante" del chat con el usuario, que **solo** se ejecute el flujo que llama a PULZE y envía la variable `message`. Desactivar o no disparar ChatPDF/OpenAI (u otros flows) con el mismo trigger; reservarlos para otro contexto si los necesitás. Así solo BuilderBot envía, y solo **una** vez, con el contenido que devuelve PULZE.
 
 ---
 

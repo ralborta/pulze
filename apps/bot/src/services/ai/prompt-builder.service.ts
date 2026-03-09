@@ -1,6 +1,12 @@
 import { UserWithRelations, CheckIn, Conversation } from '@pulze/database'
 import { COACH_SYSTEM_PROMPT, SALUDO_FIRST_MESSAGE_TASK } from './prompts'
 
+/** Nombre seguro para prompts: nunca usar @body, @from ni "pendiente" en la respuesta al usuario. */
+function displayName(name: string | null | undefined): string {
+  if (!name || name === 'pendiente' || /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(name)) return 'Usuario'
+  return name
+}
+
 /**
  * PromptBuilderService - Construye prompts dinámicos y personalizados
  * Usa COACH_SYSTEM_PROMPT como base e inyecta contexto y tareas.
@@ -19,9 +25,10 @@ export class PromptBuilderService {
     recentConversations: Array<{ role: string; message: string }>
   ): { system: string; user: string } {
     const contextParts: string[] = []
+    const name = displayName(user.name)
 
     // Contexto del usuario
-    contextParts.push(`**Usuario:** ${user.name}`)
+    contextParts.push(`**Usuario:** ${name}`)
     contextParts.push(`**Objetivo:** ${user.goal}`)
     if (user.restrictions) contextParts.push(`**Restricciones:** ${user.restrictions}`)
     if (user.bodyData) contextParts.push(`**Peso/altura:** ${user.bodyData}`)
@@ -93,7 +100,7 @@ Estás guiando al usuario en su primera configuración. Mantén el tono amigable
         break
 
       case 'goal':
-        userMessage = `El usuario se llama ${userData.name}. Pregunta qué quiere lograr (opciones: bajar peso, ganar músculo, mejorar energía, crear hábitos, sentirse mejor).`
+        userMessage = `El usuario se llama ${displayName(userData.name)}. Pregunta qué quiere lograr (opciones: bajar peso, ganar músculo, mejorar energía, crear hábitos, sentirse mejor).`
         break
 
       case 'restrictions':
@@ -128,7 +135,7 @@ Preguntale peso y altura (o al menos peso) para poder ajustar bien su plan. Ejem
   ): { system: string; user: string } {
     const contextParts: string[] = []
 
-    contextParts.push(`**Usuario:** ${user.name}`)
+    contextParts.push(`**Usuario:** ${displayName(user.name)}`)
     contextParts.push(`**Objetivo:** ${user.goal}`)
     if (user.restrictions) contextParts.push(`**Restricciones:** ${user.restrictions}`)
     if (user.bodyData) contextParts.push(`**Peso/altura (para personalizar planes):** ${user.bodyData}`)
@@ -167,7 +174,7 @@ Respuesta máxima: 200 palabras.`
   ): { system: string; user: string } {
     const contextParts: string[] = []
     
-    contextParts.push(`**Usuario:** ${user.name}`)
+    contextParts.push(`**Usuario:** ${displayName(user.name)}`)
     contextParts.push(`**Objetivo:** ${user.goal}`)
     contextParts.push(`**Última racha:** ${user.longestStreak} días (récord personal)`)
     contextParts.push(`**Días sin check-in:** ${daysSinceLastCheckIn}`)
@@ -203,7 +210,7 @@ Máximo: 100 palabras.`
     const system = `${this.getSystemIdentity()}
 
 **CONTEXTO DEL USUARIO:**
-- Nombre: ${user.name}
+- Nombre: ${displayName(user.name)}
 - Objetivo: ${user.goal}
 - Restricciones: ${user.restrictions || 'ninguna'}
 
@@ -244,7 +251,7 @@ Máximo: 200 palabras.`
       `Día ${i + 1}: Sueño ${c.sleep}/5, Energía ${c.energy}/5, Entrenó: ${c.trainedToday ? 'Sí' : 'No'}`
     ).join('\n')
 
-    const userMessage = `Usuario: ${user.name}
+    const userMessage = `Usuario: ${displayName(user.name)}
 Objetivo: ${user.goal}
 Racha actual: ${user.currentStreak} días
 

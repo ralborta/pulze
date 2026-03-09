@@ -55,7 +55,7 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
   }
 
   const fromRaw = raw.from ?? data.from ?? data.phone ?? data.sender ?? data.wa_id ?? data.contact?.wa_id ?? ''
-  const from = typeof fromRaw === 'string' ? fromRaw : String(fromRaw?.id ?? fromRaw?.wa_id ?? fromRaw ?? '')
+  let from = typeof fromRaw === 'string' ? fromRaw : String(fromRaw?.id ?? fromRaw?.wa_id ?? fromRaw ?? '')
 
   // Mensaje: puede ser string o objeto (ej. { body }, { text: { body } }) y varios nombres
   const messageRaw =
@@ -72,6 +72,12 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
       (v): v is string => typeof v === 'string' && v.length > 0 && v.length < 5000 && !/^\+?[\d\s\-]{10,}$/.test(v)
     )
     if (firstString) message = firstString
+  }
+  // BuilderBot en pruebas puede enviar variables no resueltas: @body, @from, {{body}}. No usarlas como contenido real.
+  if (typeof message === 'string' && /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(message.trim())) message = ''
+  if (typeof from === 'string' && /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(from.trim())) {
+    console.warn('⚠️ Webhook con from placeholder (@from, etc.): no se puede identificar usuario')
+    from = ''
   }
   const event = (eventName === 'message' || eventName === 'status' || eventName === 'media')
     ? eventName
@@ -141,10 +147,13 @@ export async function handleBuilderBotWebhook(req: Request, res: Response) {
     }
   } catch (error: any) {
     console.error('❌ Error en webhook:', error)
-    res.status(500).json({
-      error: 'Internal server error',
-      message: error.message,
-    })
+    // Siempre 200 + mensaje seguro: así BuilderBot no dispara su fallback ("problemas técnicos")
+    // y el usuario recibe una sola respuesta. El mensaje "problemas técnicos" NO viene de PULZE.
+    const safeMessage =
+      'Disculpá, en este momento no pude procesar tu mensaje. ¿Podés intentar de nuevo en un segundo?'
+    res.status(200).json(
+      webhookPayload(safeMessage, { flow: 'menu', registered: true, nombre: null })
+    )
   }
 }
 
@@ -162,9 +171,9 @@ function webhookPayload(
   message: string | null,
   opts: { flow: string; registered: boolean; nombre?: string | null }
 ): { message: string | null; flow: string; registered: boolean; nombre: string | null } {
-  const nombre = opts.nombre && opts.nombre !== 'pendiente' && opts.nombre !== '@body'
-    ? opts.nombre
-    : null
+  const isPlaceholderName = (n: string | null | undefined) =>
+    !n || n === 'pendiente' || /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(n)
+  const nombre = opts.nombre && !isPlaceholderName(opts.nombre) ? opts.nombre : null
   return {
     message: message ?? null,
     flow: opts.flow,
@@ -202,7 +211,12 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
 
   if (!phone) {
     console.warn('⚠️ Webhook sin "from" válido:', event.from)
-    return res.status(400).json({ error: 'from required' })
+    return res.status(200).json(
+      webhookPayload(
+        'No pudimos identificar tu número. Por favor enviá el mensaje de nuevo desde WhatsApp.',
+        { flow: 'menu', registered: false, nombre: null }
+      )
+    )
   }
 
   // 1. Buscar o crear usuario (siempre por teléfono normalizado)

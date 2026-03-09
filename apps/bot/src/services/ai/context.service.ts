@@ -1,6 +1,12 @@
 import { conversationService, userService, prisma } from '@pulze/database'
 import { ChatMessage } from './ai.service'
 
+/** Nombre seguro para prompts: nunca usar @body, @from ni "pendiente" en la respuesta al usuario. */
+function displayName(name: string | null | undefined): string {
+  if (!name || name === 'pendiente' || /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(name)) return 'Usuario'
+  return name
+}
+
 /**
  * Servicio para manejar contexto y memoria del usuario
  */
@@ -14,8 +20,8 @@ export class ContextService {
 
     const contextParts: string[] = []
 
-    // Información básica
-    contextParts.push(`Nombre: ${user.name}`)
+    // Información básica (nunca exponer @body/@from al modelo)
+    contextParts.push(`Nombre: ${displayName(user.name)}`)
     contextParts.push(`Objetivo: ${user.goal}`)
 
     if (user.restrictions) {
