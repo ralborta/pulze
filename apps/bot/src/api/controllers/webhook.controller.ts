@@ -40,45 +40,78 @@ interface BuilderBotMessage {
   timestamp: string
 }
 
+/** Extrae un teléfono desde cualquier formato (string, number, object con id/wa_id). */
+function extractPhone(value: any): string {
+  if (value == null) return ''
+  if (typeof value === 'number') return String(value)
+  if (typeof value === 'string') return value.trim()
+  const s = value?.id ?? value?.wa_id ?? value?.phone ?? value?.sender
+  return s != null ? String(s).trim() : ''
+}
+
+/** Extrae texto de mensaje desde string u objeto (body, text.body, etc.). */
+function extractMessageText(value: any): string {
+  if (value == null) return ''
+  if (typeof value === 'string') return value.trim()
+  const t = value?.text?.body ?? value?.text ?? value?.body ?? value?.content
+  return t != null ? String(t).trim() : ''
+}
+
 /**
- * Normaliza el body del webhook: BuilderBot puede enviar
- * - formato directo: { event, from, message, ... }
- * - formato con data: { eventName, data: { from, message, ... }, projectId }
+ * Normaliza el body del webhook. BuilderBot Cloud suele enviar:
+ * { eventName, data: { from, body, keyword, answer, ... }, projectId }
+ * Todo lo importante viene en data; from/message en raíz pueden no estar.
  */
 function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: string } {
   const raw = body || {}
   const data = raw.data || {}
   const eventName = raw.eventName ?? raw.event
 
-  if (Object.keys(data).length > 0 && !raw.from && !raw.message && !raw.body) {
-    console.log('📦 Payload con data:', Object.keys(data))
+  // Cuando el payload es { eventName, data, projectId }, priorizar data para from y mensaje
+  const useDataFirst = Boolean(
+    (raw.eventName || raw.data) && typeof data === 'object' && Object.keys(data).length > 0
+  )
+
+  let from = ''
+  if (useDataFirst) {
+    from = extractPhone(data.from ?? data.phone ?? data.sender ?? data.wa_id ?? data.contact?.wa_id ?? data.contact?.id)
+  }
+  if (!from) {
+    from = extractPhone(raw.from ?? raw.phone ?? data.from ?? data.phone ?? data.sender ?? data.wa_id ?? data.contact?.wa_id ?? '')
   }
 
-  const fromRaw = raw.from ?? data.from ?? data.phone ?? data.sender ?? data.wa_id ?? data.contact?.wa_id ?? ''
-  let from = typeof fromRaw === 'string' ? fromRaw : String(fromRaw?.id ?? fromRaw?.wa_id ?? fromRaw ?? '')
-
-  // Mensaje: puede ser string o objeto (ej. { body }, { text: { body } }) y varios nombres
-  const messageRaw =
-    raw.message ?? raw.body ??
-    data.message ?? data.body ?? data.text ?? data.content ?? data.respMessage ?? data.answer ?? data.keyword ??
-    data.incomingMessage ?? data.userMessage ?? data.payload?.body ?? data.payload?.message
-  let message =
-    typeof messageRaw === 'string'
-      ? messageRaw
-      : (messageRaw?.text?.body ?? messageRaw?.text ?? messageRaw?.body ?? messageRaw?.content ?? '')
-  // Si sigue vacío y hay data, buscar cualquier string que parezca mensaje (BuilderBot puede usar otras claves)
+  let message = ''
+  if (useDataFirst) {
+    // BuilderBot Cloud: body = mensaje del usuario; keyword/answer a veces también
+    const fromData =
+      extractMessageText(data.body) ||
+      extractMessageText(data.message) ||
+      extractMessageText(data.keyword) ||
+      extractMessageText(data.answer) ||
+      extractMessageText(data.respMessage) ||
+      extractMessageText(data.text) ||
+      extractMessageText(data.content) ||
+      (typeof data.userMessage === 'string' ? data.userMessage.trim() : '')
+    message = fromData
+  }
+  if (!message) {
+    const messageRaw = raw.message ?? raw.body ?? data.message ?? data.body ?? data.keyword ?? data.answer ?? data.respMessage ?? data.text ?? data.content ?? data.incomingMessage ?? data.userMessage ?? data.payload?.body ?? data.payload?.message
+    message = extractMessageText(messageRaw) || (typeof messageRaw === 'string' ? messageRaw.trim() : '')
+  }
   if (!message && typeof data === 'object' && Object.keys(data).length > 0) {
     const firstString = Object.values(data).find(
       (v): v is string => typeof v === 'string' && v.length > 0 && v.length < 5000 && !/^\+?[\d\s\-]{10,}$/.test(v)
     )
     if (firstString) message = firstString
   }
-  // BuilderBot en pruebas puede enviar variables no resueltas: @body, @from, {{body}}. No usarlas como contenido real.
+
+  // Placeholders no resueltos (@body, @from) no son contenido real
   if (typeof message === 'string' && /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(message.trim())) message = ''
-  if (typeof from === 'string' && /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(from.trim())) {
+  if (from && /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(from.trim())) {
     console.warn('⚠️ Webhook con from placeholder (@from, etc.): no se puede identificar usuario')
     from = ''
   }
+
   const event = (eventName === 'message' || eventName === 'status' || eventName === 'media')
     ? eventName
     : (from && (message || data.media)) ? 'message' : 'message'
@@ -87,9 +120,9 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
     ...raw,
     ...data,
     event,
-    from,
+    from: from || '',
     message: message || '',
-    body: raw.body ?? data.body ?? message,
+    body: message || raw.body ?? data.body ?? '',
     type: raw.type ?? data.type ?? 'text',
     intent: raw.intent ?? data.intent,
     entities: raw.entities ?? data.entities,
@@ -106,7 +139,13 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
  */
 export async function handleBuilderBotWebhook(req: Request, res: Response) {
   try {
-    const event = normalizeBuilderBotPayload(req.body) as BuilderBotMessage & { event: string }
+    let event = normalizeBuilderBotPayload(req.body) as BuilderBotMessage & { event: string }
+
+    // Prueba de BuilderBot: si from vino como placeholder (@from) o vacío, usar PULZE_TEST_PHONE para poder probar
+    const testPhone = process.env.PULZE_TEST_PHONE?.trim().replace(/^\+/, '')
+    if (!event.from && testPhone) {
+      event = { ...event, from: testPhone }
+    }
 
     const eventType = event.event ?? 'message'
     const from = event.from
@@ -114,13 +153,17 @@ export async function handleBuilderBotWebhook(req: Request, res: Response) {
     const hasMessage = !!text
 
     if (!hasMessage && req.body?.data && typeof req.body.data === 'object') {
-      console.log('📦 data keys (mensaje no extraído en raíz):', Object.keys(req.body.data))
+      console.log('📦 data keys (mensaje no extraído):', Object.keys(req.body.data), 'valores from/body:', {
+        dataFrom: req.body.data?.from,
+        dataBody: typeof req.body.data?.body === 'string' ? req.body.data.body.slice(0, 80) : req.body.data?.body,
+      })
     }
     console.log('📩 Webhook recibido:', {
       event: eventType,
-      from: from || '(vacío)',
+      from: from ? from.slice(0, 6) + '***' : '(vacío)',
       hasMessage,
-      keys: Object.keys(req.body || {}),
+      messageLen: text.length,
+      topKeys: Object.keys(req.body || {}),
     })
 
     const ev = { ...event, event: eventType }
