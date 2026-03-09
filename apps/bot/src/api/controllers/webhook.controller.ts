@@ -61,11 +61,18 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
   const messageRaw =
     raw.message ?? raw.body ??
     data.message ?? data.body ?? data.text ?? data.content ?? data.respMessage ?? data.answer ?? data.keyword ??
-    data.message?.body ?? data.message?.text?.body ?? data.message?.text
-  const message =
+    data.incomingMessage ?? data.userMessage ?? data.payload?.body ?? data.payload?.message
+  let message =
     typeof messageRaw === 'string'
       ? messageRaw
       : (messageRaw?.text?.body ?? messageRaw?.text ?? messageRaw?.body ?? messageRaw?.content ?? '')
+  // Si sigue vacío y hay data, buscar cualquier string que parezca mensaje (BuilderBot puede usar otras claves)
+  if (!message && typeof data === 'object' && Object.keys(data).length > 0) {
+    const firstString = Object.values(data).find(
+      (v): v is string => typeof v === 'string' && v.length > 0 && v.length < 5000 && !/^\+?[\d\s\-]{10,}$/.test(v)
+    )
+    if (firstString) message = firstString
+  }
   const event = (eventName === 'message' || eventName === 'status' || eventName === 'media')
     ? eventName
     : (from && (message || data.media)) ? 'message' : 'message'
@@ -86,7 +93,10 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
 
 /**
  * POST /api/webhooks/builderbot
- * Recibe mensajes de WhatsApp procesados por BuilderBot
+ * Recibe mensajes de WhatsApp procesados por BuilderBot.
+ * Por defecto solo devolvemos JSON (message, flow, registered, nombre); BuilderBot envía al cliente
+ * usando la variable "message" en su flujo. Para que PULZE también envíe por API, usar
+ * PULZE_SEND_VIA_BUILDERBOT_API=true.
  */
 export async function handleBuilderBotWebhook(req: Request, res: Response) {
   try {
@@ -97,6 +107,9 @@ export async function handleBuilderBotWebhook(req: Request, res: Response) {
     const text = (event.message ?? event.body ?? '').trim()
     const hasMessage = !!text
 
+    if (!hasMessage && req.body?.data && typeof req.body.data === 'object') {
+      console.log('📦 data keys (mensaje no extraído en raíz):', Object.keys(req.body.data))
+    }
     console.log('📩 Webhook recibido:', {
       event: eventType,
       from: from || '(vacío)',
@@ -149,21 +162,28 @@ function webhookPayload(
   message: string | null,
   opts: { flow: string; registered: boolean; nombre?: string | null }
 ): { message: string | null; flow: string; registered: boolean; nombre: string | null } {
+  const nombre = opts.nombre && opts.nombre !== 'pendiente' && opts.nombre !== '@body'
+    ? opts.nombre
+    : null
   return {
     message: message ?? null,
     flow: opts.flow,
     registered: opts.registered,
-    nombre: opts.nombre ?? null,
+    nombre,
   }
 }
 
 /**
- * Envía la respuesta por la API de BuilderBot si BUILDERBOT_API_URL está configurada.
- * Si no, solo se devuelve la respuesta en el webhook (BuilderBot puede usarla para enviar).
+ * Envía la respuesta por la API de BuilderBot solo si PULZE_SEND_VIA_BUILDERBOT_API=true.
+ * Por defecto solo devolvemos el JSON del webhook y BuilderBot envía al cliente con la variable "message".
  */
+function shouldSendViaBuilderBotApi(): boolean {
+  return process.env.PULZE_SEND_VIA_BUILDERBOT_API === 'true'
+}
+
 async function sendReplyViaBuilderBot(phone: string, message: string | null): Promise<void> {
   if (!message?.trim() || !phone) return
-  if (!builderBotClient.canSend()) return
+  if (!shouldSendViaBuilderBotApi() || !builderBotClient.canSend()) return
   const to = phone.includes('+') ? phone : `+${phone}`
   const result = await builderBotClient.sendMessage({ phone: to, message })
   if (!result.success) {
@@ -304,10 +324,9 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
 }
 
 /**
- * Manejar nuevo usuario
+ * Manejar nuevo usuario: primer mensaje con prompt cerrado (no hardcodeado).
  */
-async function handleNewUser(phone: string, message: string): Promise<string> {
-  // Crear usuario pendiente
+async function handleNewUser(phone: string, _message: string): Promise<string> {
   await userService.create({
     phone,
     name: 'pendiente',
@@ -315,9 +334,21 @@ async function handleNewUser(phone: string, message: string): Promise<string> {
     onboardingComplete: false,
   })
 
-  // Mensaje de bienvenida
-  return `👋 ¡Hola! Soy PULZE, tu coach personal de bienestar.\n\nAntes de empezar, quiero conocerte un poco.\n\n¿Cómo te llamo?`
+  try {
+    const { system, user: userPrompt } = promptBuilderService.buildOnboardingPrompt('welcome', {
+      name: 'pendiente',
+      goal: 'pendiente',
+    })
+    const response = await aiService.generateResponseWithPrompt(system, userPrompt)
+    return response.content?.trim() || fallbackFirstMessage
+  } catch (e) {
+    console.warn('⚠️ Fallback mensaje de bienvenida (IA no disponible):', (e as Error).message)
+    return fallbackFirstMessage
+  }
 }
+
+const fallbackFirstMessage =
+  '👋 ¡Hola! Soy PULZE, tu coach personal de bienestar.\n\nAntes de empezar, quiero conocerte un poco.\n\n¿Cómo te llamo?'
 
 /**
  * Manejar onboarding paso a paso.
@@ -331,7 +362,9 @@ async function handleOnboarding(
   const user = await userService.findById(userId)
   if (!user) return `Algo falló. ¿Podés escribirme de nuevo?`
 
-  const msg = (message || '').trim()
+  let msg = (message || '').trim()
+  // No guardar variables no resueltas de BuilderBot (ej. @body, {{body}})
+  if (/^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(msg)) msg = ''
   if (!msg) return `Escribime algo así puedo conocerte un poco mejor 😊`
 
   // Paso 1: nombre pendiente → el mensaje es el nombre
@@ -361,13 +394,24 @@ async function handleOnboarding(
     const restrictions = /ningun[oa]|nada|no tengo/i.test(msg) ? 'Ninguna' : msg
     await userService.update(userId, {
       restrictions: restrictions === 'Ninguna' ? null : restrictions,
-      onboardingComplete: true,
     })
-    const { system, user: userPrompt } = promptBuilderService.buildOnboardingPrompt('schedule', {
+    const { system, user: userPrompt } = promptBuilderService.buildOnboardingPrompt('body_data', {
       ...user,
       restrictions: restrictions === 'Ninguna' ? undefined : restrictions,
     })
     const response = await aiService.generateResponseWithPrompt(system, userPrompt)
+    return response.content
+  }
+
+  // Paso 4: peso/altura no definidos → el mensaje son los datos corporales
+  if (user.bodyData == null || user.bodyData === '') {
+    await userService.update(userId, { bodyData: msg })
+    const { system, user: userPrompt } = promptBuilderService.buildOnboardingPrompt('schedule', {
+      ...user,
+      bodyData: msg,
+    })
+    const response = await aiService.generateResponseWithPrompt(system, userPrompt)
+    await userService.update(userId, { onboardingComplete: true })
     return response.content
   }
 

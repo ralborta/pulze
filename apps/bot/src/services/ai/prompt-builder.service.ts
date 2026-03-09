@@ -1,5 +1,5 @@
 import { UserWithRelations, CheckIn, Conversation } from '@pulze/database'
-import { COACH_SYSTEM_PROMPT } from './prompts'
+import { COACH_SYSTEM_PROMPT, SALUDO_FIRST_MESSAGE_TASK } from './prompts'
 
 /**
  * PromptBuilderService - Construye prompts dinámicos y personalizados
@@ -23,10 +23,8 @@ export class PromptBuilderService {
     // Contexto del usuario
     contextParts.push(`**Usuario:** ${user.name}`)
     contextParts.push(`**Objetivo:** ${user.goal}`)
-    
-    if (user.restrictions) {
-      contextParts.push(`**Restricciones:** ${user.restrictions}`)
-    }
+    if (user.restrictions) contextParts.push(`**Restricciones:** ${user.restrictions}`)
+    if (user.bodyData) contextParts.push(`**Peso/altura:** ${user.bodyData}`)
 
     // Racha y engagement
     if (user.currentStreak > 0) {
@@ -78,7 +76,7 @@ Respuesta máxima: 150 palabras.`
    * Construir prompt para onboarding (primera vez)
    */
   buildOnboardingPrompt(
-    step: 'welcome' | 'goal' | 'restrictions' | 'nutrition' | 'schedule',
+    step: 'welcome' | 'goal' | 'restrictions' | 'body_data' | 'nutrition' | 'schedule',
     userData: Partial<UserWithRelations>,
     userResponse?: string
   ): { system: string; user: string } {
@@ -91,7 +89,7 @@ Estás guiando al usuario en su primera configuración. Mantén el tono amigable
 
     switch (step) {
       case 'welcome':
-        userMessage = 'Inicia el onboarding. Saluda y pregunta su nombre.'
+        userMessage = SALUDO_FIRST_MESSAGE_TASK
         break
 
       case 'goal':
@@ -102,12 +100,17 @@ Estás guiando al usuario en su primera configuración. Mantén el tono amigable
         userMessage = `El usuario quiere: ${userData.goal}. Pregunta si tiene lesiones o limitaciones físicas.`
         break
 
+      case 'body_data':
+        userMessage = `Objetivo: ${userData.goal}. Restricciones: ${userData.restrictions || 'ninguna'}.
+Preguntale peso y altura (o al menos peso) para poder ajustar bien su plan. Ejemplo: "¿Me pasás tu peso actual y tu altura? Podés decirme algo como 75 kg y 1.70 m, así armo todo a tu medida." Una sola pregunta, sin encuesta.`
+        break
+
       case 'nutrition':
         userMessage = `Restricciones: ${userData.restrictions || 'ninguna'}. Pregunta si quiere acompañamiento nutricional también (sí, no, solo consejos simples).`
         break
 
       case 'schedule':
-        userMessage = `Todo registrado. Pregunta a qué hora prefiere recibir su check-in diario (mañana/mediodía/tarde/noche).`
+        userMessage = `Todo registrado (nombre, objetivo, restricciones, peso/altura). Pregunta a qué hora prefiere recibir su check-in diario (mañana/mediodía/tarde/noche).`
         break
     }
 
@@ -127,6 +130,8 @@ Estás guiando al usuario en su primera configuración. Mantén el tono amigable
 
     contextParts.push(`**Usuario:** ${user.name}`)
     contextParts.push(`**Objetivo:** ${user.goal}`)
+    if (user.restrictions) contextParts.push(`**Restricciones:** ${user.restrictions}`)
+    if (user.bodyData) contextParts.push(`**Peso/altura (para personalizar planes):** ${user.bodyData}`)
     contextParts.push(`**Racha:** ${user.currentStreak} días`)
 
     // Historial reciente
@@ -145,7 +150,7 @@ Estás guiando al usuario en su primera configuración. Mantén el tono amigable
 ${contextParts.join('\n')}
 
 **TAREA:**
-Responde la consulta del usuario de forma útil y personalizada. Si pregunta sobre ejercicios, nutrición, o bienestar, da recomendaciones específicas basadas en su objetivo y restricciones.
+Responde la consulta del usuario de forma útil y personalizada. Si pide un plan de alimentación, rutina o recomendaciones, usá su peso/altura y restricciones para personalizar. Si no tenés esos datos y el usuario pide algo que los requiere, pedile amablemente peso y altura para ajustar a su medida.
 
 Respuesta máxima: 200 palabras.`
 

@@ -22,6 +22,10 @@ export class ContextService {
       contextParts.push(`Restricciones físicas: ${user.restrictions}`)
     }
 
+    if (user.bodyData) {
+      contextParts.push(`Peso/altura (para planes y rutinas): ${user.bodyData}`)
+    }
+
     if (user.activityLevel) {
       contextParts.push(`Nivel de actividad: ${user.activityLevel}`)
     }

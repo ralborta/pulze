@@ -14,6 +14,7 @@ model User {
   email             String?
   goal              String    // "Bajar peso", "Ganar músculo", etc.
   restrictions      String?   // Lesiones, alergias, etc.
+  bodyData          String?   // Peso/altura del onboarding (ej: "75 kg, 1.70 m")
   activityLevel     String?   // "Sedentario", "Activo", "Muy activo"
   currentStreak     Int       @default(0)
   longestStreak     Int       @default(0)
