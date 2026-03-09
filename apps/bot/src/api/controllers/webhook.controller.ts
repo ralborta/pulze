@@ -122,7 +122,7 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
     event,
     from: from || '',
     message: message || '',
-    body: message || raw.body ?? data.body ?? '',
+    body: message || (raw.body ?? data.body ?? ''),
     type: raw.type ?? data.type ?? 'text',
     intent: raw.intent ?? data.intent,
     entities: raw.entities ?? data.entities,
