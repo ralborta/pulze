@@ -9,7 +9,7 @@ import { builderBotClient } from '../../services/builderbot'
  * BuilderBot puede enviar el texto en "message" o en "body"
  */
 interface BuilderBotMessage {
-  event: 'message' | 'status' | 'media'
+  event: 'message' | 'status' | 'media' | 'outgoing'
   from: string
   message?: string
   body?: string
