@@ -58,71 +58,53 @@ function extractMessageText(value: any): string {
 }
 
 /**
- * Normaliza el body del webhook. BuilderBot Cloud suele enviar:
- * { eventName, data: { from, body, keyword, answer, ... }, projectId }
- * Todo lo importante viene en data; from/message en raíz pueden no estar.
+ * Normaliza el body del webhook.
+ * BuilderBot Cloud envía siempre: { eventName, data: { from, body, name, attachment, ... }, projectId }
+ * - eventName: "message.incoming" | "message.outgoing" | etc.
+ * - data.from: teléfono del usuario
+ * - data.body: texto del mensaje
+ * - data.name: nombre de WhatsApp del usuario (opcional)
  */
 function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: string } {
   const raw = body || {}
   const data = raw.data || {}
-  const eventName = raw.eventName ?? raw.event
 
-  // Cuando el payload es { eventName, data, projectId }, priorizar data para from y mensaje
-  const useDataFirst = Boolean(
-    (raw.eventName || raw.data) && typeof data === 'object' && Object.keys(data).length > 0
+  // eventName puede ser "message.incoming", "message.outgoing", "message", etc.
+  const eventNameRaw: string = raw.eventName ?? raw.event ?? ''
+  // Normalizar a los tipos que usa el switch: message | status | media
+  let event = 'message'
+  if (eventNameRaw.includes('incoming') || eventNameRaw === 'message') event = 'message'
+  else if (eventNameRaw.includes('outgoing')) event = 'outgoing'
+  else if (eventNameRaw.includes('status')) event = 'status'
+  else if (eventNameRaw.includes('media')) event = 'media'
+
+  // from: siempre en data.from (BuilderBot Cloud); fallback raíz
+  let from = extractPhone(data.from ?? raw.from ?? data.phone ?? data.sender ?? data.wa_id ?? '')
+
+  // body (mensaje del usuario): data.body es el campo estándar de BuilderBot Cloud
+  let message = extractMessageText(
+    data.body ?? data.message ?? data.keyword ?? data.answer ?? data.respMessage ??
+    data.text ?? data.content ?? raw.message ?? raw.body ?? ''
   )
 
-  let from = ''
-  if (useDataFirst) {
-    from = extractPhone(data.from ?? data.phone ?? data.sender ?? data.wa_id ?? data.contact?.wa_id ?? data.contact?.id)
-  }
-  if (!from) {
-    from = extractPhone(raw.from ?? raw.phone ?? data.from ?? data.phone ?? data.sender ?? data.wa_id ?? data.contact?.wa_id ?? '')
-  }
+  // Nombre de WhatsApp del usuario (opcional, para personalizar si se quiere)
+  const whatsappName: string = typeof data.name === 'string' ? data.name.trim() : ''
 
-  let message = ''
-  if (useDataFirst) {
-    // BuilderBot Cloud: body = mensaje del usuario; keyword/answer a veces también
-    const fromData =
-      extractMessageText(data.body) ||
-      extractMessageText(data.message) ||
-      extractMessageText(data.keyword) ||
-      extractMessageText(data.answer) ||
-      extractMessageText(data.respMessage) ||
-      extractMessageText(data.text) ||
-      extractMessageText(data.content) ||
-      (typeof data.userMessage === 'string' ? data.userMessage.trim() : '')
-    message = fromData
-  }
-  if (!message) {
-    const messageRaw = raw.message ?? raw.body ?? data.message ?? data.body ?? data.keyword ?? data.answer ?? data.respMessage ?? data.text ?? data.content ?? data.incomingMessage ?? data.userMessage ?? data.payload?.body ?? data.payload?.message
-    message = extractMessageText(messageRaw) || (typeof messageRaw === 'string' ? messageRaw.trim() : '')
-  }
-  if (!message && typeof data === 'object' && Object.keys(data).length > 0) {
-    const firstString = Object.values(data).find(
-      (v): v is string => typeof v === 'string' && v.length > 0 && v.length < 5000 && !/^\+?[\d\s\-]{10,}$/.test(v)
-    )
-    if (firstString) message = firstString
-  }
-
-  // Placeholders no resueltos (@body, @from) no son contenido real
-  if (typeof message === 'string' && /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(message.trim())) message = ''
+  // Placeholders no resueltos (@body, @from, {{body}}) → no son contenido real (solo ocurre en pruebas)
+  if (/^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(message.trim())) message = ''
   if (from && /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(from.trim())) {
-    console.warn('⚠️ Webhook con from placeholder (@from, etc.): no se puede identificar usuario')
+    console.warn('⚠️ from es placeholder (@from): no se puede identificar usuario')
     from = ''
   }
-
-  const event = (eventName === 'message' || eventName === 'status' || eventName === 'media')
-    ? eventName
-    : (from && (message || data.media)) ? 'message' : 'message'
 
   return {
     ...raw,
     ...data,
     event,
-    from: from || '',
-    message: message || '',
-    body: message || (raw.body ?? data.body ?? ''),
+    from,
+    message,
+    body: message,
+    name: whatsappName,
     type: raw.type ?? data.type ?? 'text',
     intent: raw.intent ?? data.intent,
     entities: raw.entities ?? data.entities,
@@ -179,6 +161,11 @@ export async function handleBuilderBotWebhook(req: Request, res: Response) {
 
       case 'media':
         await handleMediaMessage(ev, res)
+        break
+
+      case 'outgoing':
+        // mensaje.saliente: solo acusar recibo, no procesar
+        res.status(200).json({ received: true, event: 'outgoing' })
         break
 
       default:
