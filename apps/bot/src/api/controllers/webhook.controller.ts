@@ -240,12 +240,20 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
   const { intent, entities, type } = event
 
   if (!phone) {
-    console.warn('⚠️ Webhook sin "from" válido:', event.from)
+    // Sin teléfono (ej. prueba del panel de BuilderBot con @from sin resolver):
+    // devolver el mensaje de bienvenida para que la prueba sea realista.
+    console.warn('⚠️ Webhook sin "from" válido (posiblemente prueba de BuilderBot):', event.from)
+    const { system, user: userPrompt } = promptBuilderService.buildOnboardingPrompt('welcome', {
+      name: 'pendiente',
+      goal: 'pendiente',
+    })
+    let welcomeMsg = fallbackFirstMessage
+    try {
+      const aiResp = await aiService.generateResponseWithPrompt(system, userPrompt)
+      welcomeMsg = aiResp.content?.trim() || fallbackFirstMessage
+    } catch (_) {}
     return res.status(200).json(
-      webhookPayload(
-        'No pudimos identificar tu número. Por favor enviá el mensaje de nuevo desde WhatsApp.',
-        { flow: 'menu', registered: false, nombre: null }
-      )
+      webhookPayload(welcomeMsg, { flow: 'onboarding', registered: false, nombre: null })
     )
   }
 
