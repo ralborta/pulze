@@ -209,6 +209,41 @@ export class BuilderBotClient {
   }
 
   /**
+   * Actualizar las instrucciones (system prompt) del Agente de IA en BuilderBot.
+   * Endpoint: POST /{BOT_ID}/answer/{ANSWER_ID}/plugin/assistant
+   * Ref: builderchat/src/app/api/builderbot/prompt/route.ts
+   */
+  async updateAssistantInstructions(instructions: string): Promise<{ success: boolean; error?: string }> {
+    const answerId = process.env.BUILDERBOT_ANSWER_ID?.trim()
+    if (!answerId) {
+      console.warn('⚠️ BUILDERBOT_ANSWER_ID no configurado — no se pueden actualizar instructions')
+      return { success: false, error: 'BUILDERBOT_ANSWER_ID no configurado' }
+    }
+    if (!this.botId || !this.apiKey) {
+      return { success: false, error: 'BUILDERBOT_BOT_ID o BUILDERBOT_API_KEY no configurados' }
+    }
+    try {
+      const url = `${this.baseURL}/${this.botId}/answer/${answerId}/plugin/assistant`
+      const response = await axios.post(
+        url,
+        { instructions },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-builderbot': this.apiKey,
+          },
+          timeout: 10000,
+        }
+      )
+      console.log('✅ Instructions actualizadas en BuilderBot:', response.status)
+      return { success: true }
+    } catch (error: any) {
+      console.error('❌ Error actualizando instructions en BuilderBot:', error.response?.data || error.message)
+      return { success: false, error: error.response?.data?.message || error.message }
+    }
+  }
+
+  /**
    * Verificar que la API está funcionando
    */
   async healthCheck(): Promise<boolean> {

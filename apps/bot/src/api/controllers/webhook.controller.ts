@@ -241,19 +241,15 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
 
   if (!phone) {
     // Sin teléfono (ej. prueba del panel de BuilderBot con @from sin resolver):
-    // devolver el mensaje de bienvenida para que la prueba sea realista.
+    // igual enviamos instructions de bienvenida al agente para que la prueba sea realista.
     console.warn('⚠️ Webhook sin "from" válido (posiblemente prueba de BuilderBot):', event.from)
-    const { system, user: userPrompt } = promptBuilderService.buildOnboardingPrompt('welcome', {
-      name: 'pendiente',
-      goal: 'pendiente',
-    })
-    let welcomeMsg = fallbackFirstMessage
-    try {
-      const aiResp = await aiService.generateResponseWithPrompt(system, userPrompt)
-      welcomeMsg = aiResp.content?.trim() || fallbackFirstMessage
-    } catch (_) {}
+    const instructions = promptBuilderService.buildInstructions(
+      'Es el primer mensaje del usuario. Saludalo con calidez, presentate como PULZE su coach de bienestar, y preguntale cómo se llama. Una sola pregunta. Máximo 4 líneas.',
+      {}
+    )
+    await pushInstructionsToBuilderBot(instructions)
     return res.status(200).json(
-      webhookPayload(welcomeMsg, { flow: 'onboarding', registered: false, nombre: null })
+      webhookPayload(null, { flow: 'onboarding', registered: false, nombre: null })
     )
   }
 
@@ -263,20 +259,19 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     user = await userService.findByPhone(event.from)
   }
 
-  // Si es usuario nuevo, iniciar onboarding → BuilderBot usa flow "onboarding"
+  // Si es usuario nuevo → crear en DB + enviar instructions a BuilderBot, devolver flow
   if (!user) {
-    const response = await handleNewUser(phone, text)
-    console.log('🆕 Usuario nuevo, respuesta onboarding:', response?.slice(0, 80) + '...')
-    await sendReplyViaBuilderBot(event.from, response)
-    return res.json(webhookPayload(response, { flow: 'onboarding', registered: false }))
+    await handleNewUser(phone, text)
+    console.log('🆕 Usuario nuevo → instructions enviadas a BuilderBot')
+    return res.json(webhookPayload(null, { flow: 'onboarding', registered: false }))
   }
 
-  // Si no completó onboarding → BuilderBot usa flow "onboarding"
+  // Si no completó onboarding → avanzar paso + enviar instructions a BuilderBot
   if (!user.onboardingComplete) {
-    const response = await handleOnboarding(user.id, text, intent)
-    await sendReplyViaBuilderBot(event.from, response)
+    await handleOnboarding(user.id, text, intent)
+    const updatedUser = await userService.findById(user.id)
     return res.json(
-      webhookPayload(response, { flow: 'onboarding', registered: true, nombre: user.name })
+      webhookPayload(null, { flow: 'onboarding', registered: true, nombre: updatedUser?.name ?? user.name })
     )
   }
 
@@ -376,9 +371,19 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
 }
 
 /**
- * Manejar nuevo usuario: primer mensaje con prompt cerrado (no hardcodeado).
+ * Arma las instructions para el Agente de IA de BuilderBot y las actualiza via API.
+ * Si el ANSWER_ID no está configurado, devuelve false (BuilderBot usará su prompt actual).
  */
-async function handleNewUser(phone: string, _message: string): Promise<string> {
+async function pushInstructionsToBuilderBot(instructions: string): Promise<boolean> {
+  const result = await builderBotClient.updateAssistantInstructions(instructions)
+  return result.success
+}
+
+/**
+ * Manejar nuevo usuario: crear en DB y armar instructions de bienvenida para BuilderBot.
+ * No llama a OpenAI — BuilderBot genera el mensaje con su IA usando las instructions.
+ */
+async function handleNewUser(phone: string, _message: string): Promise<void> {
   await userService.create({
     phone,
     name: 'pendiente',
@@ -386,90 +391,78 @@ async function handleNewUser(phone: string, _message: string): Promise<string> {
     onboardingComplete: false,
   })
 
-  try {
-    const { system, user: userPrompt } = promptBuilderService.buildOnboardingPrompt('welcome', {
-      name: 'pendiente',
-      goal: 'pendiente',
-    })
-    const response = await aiService.generateResponseWithPrompt(system, userPrompt)
-    return response.content?.trim() || fallbackFirstMessage
-  } catch (e) {
-    console.warn('⚠️ Fallback mensaje de bienvenida (IA no disponible):', (e as Error).message)
-    return fallbackFirstMessage
-  }
+  const instructions = promptBuilderService.buildInstructions(
+    'Es el primer mensaje del usuario (recién abre el chat por primera vez). ' +
+    'Saludalo con calidez, presentate como PULZE su coach de bienestar, y preguntale cómo se llama o cómo quiere que lo llames. ' +
+    'Una sola pregunta. Máximo 4 líneas. No preguntes objetivos todavía.',
+    {}
+  )
+  await pushInstructionsToBuilderBot(instructions)
 }
-
-const fallbackFirstMessage =
-  '👋 ¡Hola! Soy PULZE, tu coach personal de bienestar.\n\nAntes de empezar, quiero conocerte un poco.\n\n¿Cómo te llamo?'
 
 /**
  * Manejar onboarding paso a paso.
- * Detecta el paso actual (nombre → objetivo → restricciones), actualiza el usuario y genera la siguiente pregunta con IA.
+ * Guarda datos en DB, arma instructions personalizadas y las envía al Agente de IA de BuilderBot.
+ * No llama a OpenAI.
  */
-async function handleOnboarding(
-  userId: string,
-  message: string,
-  _intent?: string
-): Promise<string> {
+async function handleOnboarding(userId: string, message: string, _intent?: string): Promise<void> {
   const user = await userService.findById(userId)
-  if (!user) return `Algo falló. ¿Podés escribirme de nuevo?`
+  if (!user) return
 
   let msg = (message || '').trim()
-  // No guardar variables no resueltas de BuilderBot (ej. @body, {{body}})
   if (/^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(msg)) msg = ''
-  if (!msg) return `Escribime algo así puedo conocerte un poco mejor 😊`
+
+  let task = ''
 
   // Paso 1: nombre pendiente → el mensaje es el nombre
   if (user.name === 'pendiente') {
-    await userService.update(userId, { name: msg })
-    const { system, user: userPrompt } = promptBuilderService.buildOnboardingPrompt('goal', {
-      ...user,
-      name: msg,
-    })
-    const response = await aiService.generateResponseWithPrompt(system, userPrompt)
-    return response.content
-  }
+    if (msg) await userService.update(userId, { name: msg })
+    const nombre = msg || 'el usuario'
+    task = `El usuario acaba de decirte su nombre: "${nombre}". ` +
+      `Confirmalo con entusiasmo genuino y preguntale qué objetivo quiere lograr. ` +
+      `Opciones: bajar peso, ganar músculo, mejorar energía, crear hábitos, sentirse mejor. ` +
+      `Podés ofrecer las opciones o dejar respuesta libre. Una sola pregunta.`
 
   // Paso 2: objetivo pendiente → el mensaje es el objetivo
-  if (user.goal === 'pendiente') {
-    await userService.update(userId, { goal: msg })
-    const { system, user: userPrompt } = promptBuilderService.buildOnboardingPrompt('restrictions', {
-      ...user,
-      goal: msg,
-    })
-    const response = await aiService.generateResponseWithPrompt(system, userPrompt)
-    return response.content
-  }
+  } else if (user.goal === 'pendiente') {
+    if (msg) await userService.update(userId, { goal: msg })
+    task = `El usuario se llama ${user.name} y eligió como objetivo: "${msg || user.goal}". ` +
+      `Validá su objetivo con entusiasmo genuino. ` +
+      `Luego preguntale si tiene alguna lesión o limitación física que debas tener en cuenta. Una sola pregunta.`
 
-  // Paso 3: restricciones no definidas → el mensaje son las restricciones (o "ninguna")
-  if (user.restrictions == null || user.restrictions === '') {
-    const restrictions = /ningun[oa]|nada|no tengo/i.test(msg) ? 'Ninguna' : msg
-    await userService.update(userId, {
-      restrictions: restrictions === 'Ninguna' ? null : restrictions,
-    })
-    const { system, user: userPrompt } = promptBuilderService.buildOnboardingPrompt('body_data', {
-      ...user,
-      restrictions: restrictions === 'Ninguna' ? undefined : restrictions,
-    })
-    const response = await aiService.generateResponseWithPrompt(system, userPrompt)
-    return response.content
-  }
+  // Paso 3: restricciones no definidas
+  } else if (user.restrictions == null || user.restrictions === '') {
+    const restrictions = msg && /ningun[oa]|nada|no tengo/i.test(msg) ? null : (msg || null)
+    await userService.update(userId, { restrictions })
+    task = `El usuario se llama ${user.name}, quiere ${user.goal}. ` +
+      `Restricciones físicas: ${restrictions || 'ninguna'}. ` +
+      `${restrictions ? 'Confirmale que vas a adaptar todo para cuidarlo.' : 'Reconocele que está en buenas condiciones.'} ` +
+      `Ahora preguntale su peso y altura para personalizar su plan. ` +
+      `Ejemplo: "¿Me pasás tu peso y altura? Algo como 75 kg y 1.70 m". Una sola pregunta.`
 
-  // Paso 4: peso/altura no definidos → el mensaje son los datos corporales
-  if (user.bodyData == null || user.bodyData === '') {
-    await userService.update(userId, { bodyData: msg })
-    const { system, user: userPrompt } = promptBuilderService.buildOnboardingPrompt('schedule', {
-      ...user,
-      bodyData: msg,
-    })
-    const response = await aiService.generateResponseWithPrompt(system, userPrompt)
+  // Paso 4: peso/altura no definidos
+  } else if (user.bodyData == null || user.bodyData === '') {
+    if (msg) await userService.update(userId, { bodyData: msg })
     await userService.update(userId, { onboardingComplete: true })
-    return response.content
+    task = `El usuario se llama ${user.name}, quiere ${user.goal}, peso/altura: "${msg}". ` +
+      `Confirmá que ya tenés todo lo que necesitás para acompañarlo. ` +
+      `Preguntale a qué hora prefiere recibir su check-in diario (mañana, mediodía, tarde o noche). Una sola pregunta.`
+
+  } else {
+    await userService.update(userId, { onboardingComplete: true })
+    task = `El usuario ${user.name} completó su perfil. ` +
+      `Confirmale que está todo listo y decile cuándo va a recibir su primer check-in. Mensaje de cierre cálido.`
   }
 
-  // Ya completó onboarding pero el flag no se actualizó
-  await userService.update(userId, { onboardingComplete: true })
-  return `Ya tenés todo listo. Cuando quieras hacer tu primer check-in, escribime. 😊`
+  const instructions = promptBuilderService.buildInstructions(task, {
+    name: user.name,
+    goal: user.goal !== 'pendiente' ? user.goal : undefined,
+    restrictions: user.restrictions,
+    bodyData: user.bodyData,
+    streak: user.currentStreak,
+  })
+
+  await pushInstructionsToBuilderBot(instructions)
 }
 
 /**

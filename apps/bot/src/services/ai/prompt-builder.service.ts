@@ -262,6 +262,43 @@ Total: ${weeklyCheckIns.length}/7 check-ins`
 
     return { system, user: userMessage }
   }
+
+  /**
+   * Construir instructions completo para el Agente de IA de BuilderBot.
+   * Devuelve un único string que combina identidad + contexto + tarea concreta.
+   * BuilderBot usa este string como system prompt de su IA.
+   */
+  buildInstructions(
+    task: string,
+    context?: {
+      name?: string | null
+      goal?: string | null
+      restrictions?: string | null
+      bodyData?: string | null
+      streak?: number
+      conversationSummary?: string | null
+    }
+  ): string {
+    const parts: string[] = [this.getSystemIdentity()]
+
+    if (context) {
+      const ctx: string[] = []
+      if (context.name) ctx.push(`Nombre del usuario: ${displayName(context.name)}`)
+      if (context.goal && context.goal !== 'pendiente') ctx.push(`Objetivo: ${context.goal}`)
+      if (context.restrictions) ctx.push(`Restricciones físicas: ${context.restrictions}`)
+      if (context.bodyData) ctx.push(`Peso/altura: ${context.bodyData}`)
+      if (context.streak) ctx.push(`Racha actual: ${context.streak} días`)
+      if (context.conversationSummary) ctx.push(`Conversación reciente:\n${context.conversationSummary}`)
+      if (ctx.length > 0) {
+        parts.push(`\nCONTEXTO DEL USUARIO:\n${ctx.join('\n')}`)
+      }
+    }
+
+    parts.push(`\nTAREA PARA ESTE TURNO:\n${task}`)
+    parts.push(`\nIMPORTANTE: Respondé solo con el mensaje para el usuario. Sin explicaciones, sin prefijos, sin comillas. Directo y natural, como si fuera WhatsApp.`)
+
+    return parts.join('\n')
+  }
 }
 
 export const promptBuilderService = new PromptBuilderService()
