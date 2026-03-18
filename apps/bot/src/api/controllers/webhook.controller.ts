@@ -246,12 +246,12 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     // Sin teléfono (ej. prueba del panel de BuilderBot con @from sin resolver):
     console.warn('⚠️ Webhook sin "from" válido (posiblemente prueba de BuilderBot):', event.from)
     const instructions = promptBuilderService.buildInstructions(
-      'Es el primer mensaje del usuario. Saludalo con calidez, presentate como PULZE su coach de bienestar, y preguntale cómo se llama. Una sola pregunta. Máximo 4 líneas.',
+      'Es el primer mensaje del usuario. Saludalo y preguntale su nombre completo para el registro. Una sola pregunta. Máximo 3 líneas.',
       {}
     )
     await pushInstructionsToBuilderBot(instructions)
     const msgNoPhone =
-      '¡Hola! Soy PULZE, tu coach de bienestar. Ahora te toca registrarte para armar tu plan a medida. ¿Cómo te llamo o cómo querés que te llame?'
+      '¡Hola! Soy PULZE, tu coach de bienestar. Ahora te toca registrarte. Voy a necesitar tu nombre completo y algunos datos (peso, estatura, edad, sexo) para armarte tu plan a medida. ¿Empezamos con tu nombre completo?'
     return res.status(200).json(
       webhookPayload(msgNoPhone, { flow: 'onboarding', registered: false, nombre: null })
     )
@@ -268,7 +268,7 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     await handleNewUser(phone, text)
     console.log('🆕 Usuario nuevo → instructions enviadas a BuilderBot')
     const msgNewUser =
-      '¡Bienvenido! Soy PULZE, tu coach de bienestar. Ahora te toca registrarte para armar tu plan a medida. ¿Cómo te llamo o cómo querés que te llame?'
+      '¡Bienvenido! Soy PULZE, tu coach de bienestar. Ahora te toca registrarte. Voy a necesitar tu nombre completo y algunos datos (peso, estatura, edad, sexo) para armarte tu plan a medida. ¿Empezamos con tu nombre completo?'
     return res.json(webhookPayload(msgNewUser, { flow: 'onboarding', registered: false }))
   }
 
@@ -400,9 +400,8 @@ async function handleNewUser(phone: string, _message: string): Promise<void> {
   })
 
   const instructions = promptBuilderService.buildInstructions(
-    'Es el primer mensaje del usuario (recién abre el chat por primera vez). ' +
-    'Saludalo con calidez, presentate como PULZE su coach de bienestar, y preguntale cómo se llama o cómo quiere que lo llames. ' +
-    'Una sola pregunta. Máximo 4 líneas. No preguntes objetivos todavía.',
+    'Es el primer mensaje del usuario (recién abre el chat). ' +
+    'Saludalo y preguntale su nombre completo para el registro. Una sola pregunta. Máximo 3 líneas.',
     {}
   )
   await pushInstructionsToBuilderBot(instructions)
@@ -422,39 +421,54 @@ async function handleOnboarding(userId: string, message: string, _intent?: strin
 
   let task = ''
 
-  // Paso 1: nombre pendiente → el mensaje es el nombre
+  const userAny = user as typeof user & { age?: number | null; sex?: string | null }
+
+  // Paso 1: nombre completo
   if (user.name === 'pendiente') {
     if (msg) await userService.update(userId, { name: msg })
     const nombre = msg || 'el usuario'
     task = `El usuario acaba de decirte su nombre: "${nombre}". ` +
-      `Confirmalo con entusiasmo genuino y preguntale qué objetivo quiere lograr. ` +
-      `Opciones: bajar peso, ganar músculo, mejorar energía, crear hábitos, sentirse mejor. ` +
-      `Podés ofrecer las opciones o dejar respuesta libre. Una sola pregunta.`
+      `Confirmalo con entusiasmo y preguntale su peso y altura. ` +
+      `Ejemplo: "¿Me pasás tu peso y altura? Algo como 75 kg y 1.70 m". Una sola pregunta.`
 
-  // Paso 2: objetivo pendiente → el mensaje es el objetivo
+  // Paso 2: peso y altura
+  } else if (user.bodyData == null || user.bodyData === '') {
+    if (msg) await userService.update(userId, { bodyData: msg })
+    task = `El usuario se llama ${user.name}, peso/altura: "${msg || 'pendiente'}". ` +
+      `Confirmalo brevemente y preguntale su edad (en años). Una sola pregunta.`
+
+  // Paso 3: edad
+  } else if (userAny.age == null) {
+    const age = msg && /^\d+$/.test(msg) ? parseInt(msg, 10) : null
+    if (age != null) await userService.update(userId, { age })
+    task = `El usuario se llama ${user.name}, tiene ${age ?? '?'} años. ` +
+      `Confirmalo y preguntale su sexo (masculino, femenino u otro). Una sola pregunta.`
+
+  // Paso 4: sexo
+  } else if (userAny.sex == null || userAny.sex === '') {
+    let sex: string | null = null
+    if (msg) {
+      if (/mujer|femenino/i.test(msg)) sex = 'femenino'
+      else if (/hombre|masculino/i.test(msg)) sex = 'masculino'
+      else if (/otro/i.test(msg)) sex = 'otro'
+    }
+    if (sex) await userService.update(userId, { sex })
+    task = `El usuario: ${user.name}, ${user.bodyData}, ${userAny.age} años, ${sex || 'pendiente'}. ` +
+      `Preguntale qué objetivo quiere lograr. Opciones: bajar peso, ganar músculo, mejorar energía, crear hábitos, sentirse mejor. Una sola pregunta.`
+
+  // Paso 5: objetivo
   } else if (user.goal === 'pendiente') {
     if (msg) await userService.update(userId, { goal: msg })
-    task = `El usuario se llama ${user.name} y eligió como objetivo: "${msg || user.goal}". ` +
-      `Validá su objetivo con entusiasmo genuino. ` +
-      `Luego preguntale si tiene alguna lesión o limitación física que debas tener en cuenta. Una sola pregunta.`
+    task = `El usuario se llama ${user.name} y eligió: "${msg || user.goal}". ` +
+      `Validá su objetivo. Preguntale si tiene lesiones o limitaciones físicas. Una sola pregunta.`
 
-  // Paso 3: restricciones no definidas
+  // Paso 6: restricciones → completar onboarding
   } else if (user.restrictions == null || user.restrictions === '') {
     const restrictions = msg && /ningun[oa]|nada|no tengo/i.test(msg) ? null : (msg || null)
     await userService.update(userId, { restrictions })
-    task = `El usuario se llama ${user.name}, quiere ${user.goal}. ` +
-      `Restricciones físicas: ${restrictions || 'ninguna'}. ` +
-      `${restrictions ? 'Confirmale que vas a adaptar todo para cuidarlo.' : 'Reconocele que está en buenas condiciones.'} ` +
-      `Ahora preguntale su peso y altura para personalizar su plan. ` +
-      `Ejemplo: "¿Me pasás tu peso y altura? Algo como 75 kg y 1.70 m". Una sola pregunta.`
-
-  // Paso 4: peso/altura no definidos
-  } else if (user.bodyData == null || user.bodyData === '') {
-    if (msg) await userService.update(userId, { bodyData: msg })
     await userService.update(userId, { onboardingComplete: true })
-    task = `El usuario se llama ${user.name}, quiere ${user.goal}, peso/altura: "${msg}". ` +
-      `Confirmá que ya tenés todo lo que necesitás para acompañarlo. ` +
-      `Preguntale a qué hora prefiere recibir su check-in diario (mañana, mediodía, tarde o noche). Una sola pregunta.`
+    task = `El usuario ${user.name} completó su registro. Restricciones: ${restrictions || 'ninguna'}. ` +
+      `Confirmale que está todo listo y preguntale a qué hora prefiere su check-in diario (mañana, mediodía, tarde o noche). Mensaje cálido de cierre.`
 
   } else {
     await userService.update(userId, { onboardingComplete: true })
