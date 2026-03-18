@@ -245,11 +245,6 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
   if (!phone) {
     // Sin teléfono (ej. prueba del panel de BuilderBot con @from sin resolver):
     console.warn('⚠️ Webhook sin "from" válido (posiblemente prueba de BuilderBot):', event.from)
-    const instructions = promptBuilderService.buildInstructions(
-      'Es el primer mensaje del usuario. Saludalo y preguntale su nombre completo para el registro. Una sola pregunta. Máximo 3 líneas.',
-      {}
-    )
-    await pushInstructionsToBuilderBot(instructions)
     const msgNoPhone =
       '¡Hola! Soy PULZE, tu coach de bienestar. Ahora te toca registrarte. Voy a necesitar tu nombre completo y algunos datos (peso, estatura, edad, sexo) para armarte tu plan a medida. ¿Empezamos con tu nombre completo?'
     return res.status(200).json(
@@ -272,14 +267,17 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     return res.json(webhookPayload(msgNewUser, { flow: 'onboarding', registered: false }))
   }
 
-  // Si no completó onboarding → avanzar paso + enviar instructions a BuilderBot
+  // Si no completó onboarding → avanzar paso y devolver mensaje para que BuilderBot solo envíe ese texto
+  // (evita doble respuesta: Plugin Assistant + webhook, y evita que repita el mensaje de bienvenida)
   if (!user.onboardingComplete) {
-    await handleOnboarding(user.id, text, intent)
-    const updatedUser = await userService.findById(user.id)
-    const nombre = updatedUser?.name ?? user.name
-    // Durante onboarding: el agente usa las instructions para la siguiente pregunta (objetivo, restricciones, etc.)
+    const { message: onboardingMessage, nombre: onboardingNombre } = await handleOnboarding(
+      user.id,
+      text,
+      intent
+    )
+    const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
     return res.json(
-      webhookPayload('', { flow: 'onboarding', registered: true, nombre })
+      webhookPayload(onboardingMessage, { flow: 'onboarding', registered: true, nombre })
     )
   }
 
@@ -379,17 +377,9 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
 }
 
 /**
- * Arma las instructions para el Agente de IA de BuilderBot y las actualiza via API.
- * Si el ANSWER_ID no está configurado, devuelve false (BuilderBot usará su prompt actual).
- */
-async function pushInstructionsToBuilderBot(instructions: string): Promise<boolean> {
-  const result = await builderBotClient.updateAssistantInstructions(instructions)
-  return result.success
-}
-
-/**
- * Manejar nuevo usuario: crear en DB y armar instructions de bienvenida para BuilderBot.
- * No llama a OpenAI — BuilderBot genera el mensaje con su IA usando las instructions.
+ * Manejar nuevo usuario: crear en DB.
+ * El mensaje de bienvenida se devuelve en el webhook (handleIncomingMessage).
+ * No enviamos instructions al Plugin Assistant para evitar que responda además del webhook.
  */
 async function handleNewUser(phone: string, _message: string): Promise<void> {
   await userService.create({
@@ -398,28 +388,57 @@ async function handleNewUser(phone: string, _message: string): Promise<void> {
     goal: 'pendiente',
     onboardingComplete: false,
   })
+}
 
-  const instructions = promptBuilderService.buildInstructions(
-    'Es el primer mensaje del usuario (recién abre el chat). ' +
-    'Saludalo y preguntale su nombre completo para el registro. Una sola pregunta. Máximo 3 líneas.',
-    {}
-  )
-  await pushInstructionsToBuilderBot(instructions)
+/**
+ * Construye el mensaje de onboarding para cada paso.
+ * PULZE envía siempre el mensaje en el webhook para evitar que BuilderBot envíe
+ * respuestas duplicadas (Plugin Assistant + webhook) o que repita el mensaje de bienvenida.
+ */
+function buildOnboardingMessage(
+  step: string,
+  user: { name: string; bodyData?: string | null; goal?: string | null },
+  msg: string,
+  userAny: { age?: number | null; sex?: string | null }
+): string {
+  const nombre = user.name === 'pendiente' ? '' : user.name
+  const nombreDisplay = nombre || 'el usuario'
+
+  switch (step) {
+    case 'nombre':
+      return `¡Genial, ${nombreDisplay}! 👋 ¿Me pasás tu peso y altura? Algo como 75 kg y 1.70 m.`
+    case 'peso_altura':
+      return `Perfecto. ¿Cuántos años tenés?`
+    case 'edad':
+      return `¡Dale! ¿Cuál es tu sexo? (masculino, femenino u otro)`
+    case 'sexo':
+      return `¿Qué objetivo querés lograr? (bajar peso, ganar músculo, mejorar energía, crear hábitos, sentirse mejor)`
+    case 'objetivo':
+      return `¿Tenés alguna lesión o limitación física que deba tener en cuenta?`
+    case 'restricciones':
+      return `¡Listo! 🎉 Ya tenés todo registrado. ¿A qué hora preferís tu check-in diario? (mañana, mediodía, tarde o noche)`
+    case 'completo':
+      return `¡Perfecto! Ya está todo listo. Te voy a mandar tu primer check-in pronto. ¡Cualquier cosa escribime! 💪`
+    default:
+      return ''
+  }
 }
 
 /**
  * Manejar onboarding paso a paso.
- * Guarda datos en DB, arma instructions personalizadas y las envía al Agente de IA de BuilderBot.
- * No llama a OpenAI.
+ * Guarda datos en DB y devuelve el mensaje para enviar. PULZE siempre devuelve el mensaje
+ * en el webhook para que BuilderBot solo envíe ese texto (evita doble respuesta y repeticiones).
  */
-async function handleOnboarding(userId: string, message: string, _intent?: string): Promise<void> {
+async function handleOnboarding(
+  userId: string,
+  message: string,
+  _intent?: string
+): Promise<{ message: string; nombre: string }> {
   const user = await userService.findById(userId)
-  if (!user) return
+  if (!user) return { message: '', nombre: '' }
 
   let msg = (message || '').trim()
   if (/^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(msg)) msg = ''
-
-  let task = ''
 
   const userAny = user as typeof user & { age?: number | null; sex?: string | null }
 
@@ -427,22 +446,21 @@ async function handleOnboarding(userId: string, message: string, _intent?: strin
   if (user.name === 'pendiente') {
     if (msg) await userService.update(userId, { name: msg })
     const nombre = msg || 'el usuario'
-    task = `El usuario acaba de decirte su nombre: "${nombre}". ` +
-      `Confirmalo con entusiasmo y preguntale su peso y altura. ` +
-      `Ejemplo: "¿Me pasás tu peso y altura? Algo como 75 kg y 1.70 m". Una sola pregunta.`
+    const responseMessage = buildOnboardingMessage('nombre', { ...user, name: nombre }, msg, userAny)
+    return { message: responseMessage, nombre: msg || '' }
 
   // Paso 2: peso y altura
   } else if (user.bodyData == null || user.bodyData === '') {
     if (msg) await userService.update(userId, { bodyData: msg })
-    task = `El usuario se llama ${user.name}, peso/altura: "${msg || 'pendiente'}". ` +
-      `Confirmalo brevemente y preguntale su edad (en años). Una sola pregunta.`
+    const responseMessage = buildOnboardingMessage('peso_altura', user, msg, userAny)
+    return { message: responseMessage, nombre: user.name }
 
   // Paso 3: edad
   } else if (userAny.age == null) {
     const age = msg && /^\d+$/.test(msg) ? parseInt(msg, 10) : null
     if (age != null) await userService.update(userId, { age })
-    task = `El usuario se llama ${user.name}, tiene ${age ?? '?'} años. ` +
-      `Confirmalo y preguntale su sexo (masculino, femenino u otro). Una sola pregunta.`
+    const responseMessage = buildOnboardingMessage('edad', user, msg, userAny)
+    return { message: responseMessage, nombre: user.name }
 
   // Paso 4: sexo
   } else if (userAny.sex == null || userAny.sex === '') {
@@ -453,38 +471,28 @@ async function handleOnboarding(userId: string, message: string, _intent?: strin
       else if (/otro/i.test(msg)) sex = 'otro'
     }
     if (sex) await userService.update(userId, { sex })
-    task = `El usuario: ${user.name}, ${user.bodyData}, ${userAny.age} años, ${sex || 'pendiente'}. ` +
-      `Preguntale qué objetivo quiere lograr. Opciones: bajar peso, ganar músculo, mejorar energía, crear hábitos, sentirse mejor. Una sola pregunta.`
+    const responseMessage = buildOnboardingMessage('sexo', user, msg, userAny)
+    return { message: responseMessage, nombre: user.name }
 
   // Paso 5: objetivo
   } else if (user.goal === 'pendiente') {
     if (msg) await userService.update(userId, { goal: msg })
-    task = `El usuario se llama ${user.name} y eligió: "${msg || user.goal}". ` +
-      `Validá su objetivo. Preguntale si tiene lesiones o limitaciones físicas. Una sola pregunta.`
+    const responseMessage = buildOnboardingMessage('objetivo', user, msg, userAny)
+    return { message: responseMessage, nombre: user.name }
 
   // Paso 6: restricciones → completar onboarding
   } else if (user.restrictions == null || user.restrictions === '') {
     const restrictions = msg && /ningun[oa]|nada|no tengo/i.test(msg) ? null : (msg || null)
     await userService.update(userId, { restrictions })
     await userService.update(userId, { onboardingComplete: true })
-    task = `El usuario ${user.name} completó su registro. Restricciones: ${restrictions || 'ninguna'}. ` +
-      `Confirmale que está todo listo y preguntale a qué hora prefiere su check-in diario (mañana, mediodía, tarde o noche). Mensaje cálido de cierre.`
+    const responseMessage = buildOnboardingMessage('restricciones', user, msg, userAny)
+    return { message: responseMessage, nombre: user.name }
 
   } else {
     await userService.update(userId, { onboardingComplete: true })
-    task = `El usuario ${user.name} completó su perfil. ` +
-      `Confirmale que está todo listo y decile cuándo va a recibir su primer check-in. Mensaje de cierre cálido.`
+    const responseMessage = buildOnboardingMessage('completo', user, msg, userAny)
+    return { message: responseMessage, nombre: user.name }
   }
-
-  const instructions = promptBuilderService.buildInstructions(task, {
-    name: user.name,
-    goal: user.goal !== 'pendiente' ? user.goal : undefined,
-    restrictions: user.restrictions,
-    bodyData: user.bodyData,
-    streak: user.currentStreak,
-  })
-
-  await pushInstructionsToBuilderBot(instructions)
 }
 
 /**
