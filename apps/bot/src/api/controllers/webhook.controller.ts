@@ -267,13 +267,13 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     return res.json(webhookPayload(msgNewUser, { flow: 'onboarding', registered: false }))
   }
 
-  // Si no completó onboarding → enviar instructions al Plugin Assistant y devolver message vacío.
-  // La IA responde según las instructions; message vacío evita que el flow envíe texto duplicado.
+  // Si no completó onboarding → enviar instructions al Plugin Assistant y devolver message "vacío".
+  // Zero-width space (\u200B): borra el {message} antiguo sin que el usuario vea nada.
   if (!user.onboardingComplete) {
     const { nombre: onboardingNombre } = await handleOnboarding(user.id, text, intent)
     const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
     return res.json(
-      webhookPayload('', { flow: 'onboarding', registered: true, nombre })
+      webhookPayload('\u200B', { flow: 'onboarding', registered: true, nombre })
     )
   }
 
