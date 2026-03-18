@@ -210,8 +210,8 @@ export class BuilderBotClient {
 
   /**
    * Actualizar las instrucciones (system prompt) del Agente de IA en BuilderBot.
-   * Endpoint: POST /{BOT_ID}/answer/{ANSWER_ID}/plugin/assistant
-   * Ref: builderchat/src/app/api/builderbot/prompt/route.ts
+   * Doc oficial: POST /api/v2/{id}/answer/{answerId}/plugin/assistant
+   * Base URL: https://app.builderbot.cloud (BuilderBot Cloud API v2)
    */
   async updateAssistantInstructions(instructions: string): Promise<{ success: boolean; error?: string }> {
     const answerId = process.env.BUILDERBOT_ANSWER_ID?.trim()
@@ -222,8 +222,10 @@ export class BuilderBotClient {
     if (!this.botId || !this.apiKey) {
       return { success: false, error: 'BUILDERBOT_BOT_ID o BUILDERBOT_API_KEY no configurados' }
     }
+    // BuilderBot Cloud API v2: app.builderbot.cloud (wa-api.builderbot.app da 404 para assistant)
+    const assistantBase = (process.env.BUILDERBOT_ASSISTANT_API_URL || process.env.BUILDERBOT_API_URL || 'https://app.builderbot.cloud/api/v2').replace(/\/$/, '')
     try {
-      const url = `${this.baseURL}/${this.botId}/answer/${answerId}/plugin/assistant`
+      const url = `${assistantBase}/${this.botId}/answer/${answerId}/plugin/assistant`
       const response = await axios.post(
         url,
         { instructions },

@@ -2,6 +2,24 @@
 
 El `BUILDERBOT_ANSWER_ID` es el identificador del **Agente de IA** o nodo "Answer" en tu flow de BuilderBot. PULZE lo usa para enviar instrucciones dinámicas al agente vía API.
 
+## Documentación oficial (BuilderBot Cloud)
+
+Según la [documentación de BuilderBot Cloud](https://app.builderbot.cloud):
+
+- **Endpoint:** `POST /api/v2/{id}/answer/{answerId}/plugin/assistant`
+- **Base URL:** `https://app.builderbot.cloud/api/v2`
+- **Body:** `{ "instructions": "..." }`
+- **Header:** `x-api-builderbot: API_KEY`
+
+PULZE usa esta URL por defecto. Si necesitás otra, configurá `BUILDERBOT_ASSISTANT_API_URL` o `BUILDERBOT_API_URL`.
+
+## Referencia: builderchat
+
+El proyecto **builderchat** usa el mismo endpoint. Si builderchat funciona, usá las **mismas variables** en PULZE:
+- `BUILDERBOT_BOT_ID` = Project ID (ej: `df6916fd-6561-4f4f-afbc-be203eaf4839`)
+- `BUILDERBOT_ANSWER_ID` = Flow ID (ej: `75296dcd-976a-4b2b-a943-5f4fbb05eb4c`)
+- `BUILDERBOT_API_KEY`
+
 ## Dónde buscarlo
 
 ### 1. URL del navegador (más común)

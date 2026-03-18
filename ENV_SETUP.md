@@ -13,9 +13,10 @@ OPENAI_API_KEY="sk-..."
 
 # BuilderBot.app (WhatsApp Integration)
 BUILDERBOT_API_KEY="bb_live_..."
-BUILDERBOT_BOT_ID="tu_bot_id"          # Identificador del bot en BuilderBot (obligatorio)
-BUILDERBOT_WEBHOOK_SECRET=""           # Opcional. Si usás verificación: generá un token y agregalo también como header "x-webhook-secret" en BuilderBot
-BUILDERBOT_API_URL="https://api.builderbot.app/v1"
+BUILDERBOT_BOT_ID="tu_bot_id"          # Project ID (obligatorio)
+BUILDERBOT_ANSWER_ID="tu_answer_id"     # Flow ID del agente IA (para actualizar instrucciones)
+BUILDERBOT_WEBHOOK_SECRET=""           # Opcional. Si usás verificación: generá un token y agregalo como header "x-webhook-secret" en BuilderBot
+BUILDERBOT_API_URL="https://app.builderbot.cloud/api/v2"  # URL para assistant plugin (default)
 
 # JWT Authentication
 JWT_SECRET="your-secret-key-here-change-in-production"
