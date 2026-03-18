@@ -1,0 +1,9 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN "heightCm" INTEGER;
+ALTER TABLE "User" ADD COLUMN "weightKg" DOUBLE PRECISION;
+ALTER TABLE "User" ADD COLUMN "mealsPerDay" INTEGER;
+ALTER TABLE "User" ADD COLUMN "proteinEnough" TEXT;
+ALTER TABLE "User" ADD COLUMN "dietaryRestriction" TEXT;
+ALTER TABLE "User" ADD COLUMN "baselineSleep" INTEGER;
+ALTER TABLE "User" ADD COLUMN "baselineEnergy" INTEGER;
+ALTER TABLE "User" ADD COLUMN "baselineMood" INTEGER;

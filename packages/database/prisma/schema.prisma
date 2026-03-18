@@ -14,10 +14,18 @@ model User {
   email             String?
   goal              String    // "Bajar peso", "Ganar músculo", etc.
   restrictions      String?   // Lesiones, alergias, etc.
-  bodyData          String?   // Peso/altura del onboarding (ej: "75 kg, 1.70 m")
+  bodyData          String?   // Peso/altura legacy (ej: "75 kg, 1.70 m")
+  heightCm          Int?      // Altura en cm (para n8n/métricas)
+  weightKg          Float?    // Peso en kg (para n8n/métricas)
   age               Int?      // Edad en años
   sex               String?   // "masculino", "femenino", "otro"
-  activityLevel     String?   // "Sedentario", "Activo", "Muy activo"
+  activityLevel     String?   // "sedentario"|"ligero"|"moderado"|"alto" (1-4)
+  mealsPerDay       Int?      // Cuántas comidas por día
+  proteinEnough     String?   // "sí"|"no"|"no_sé"
+  dietaryRestriction String?  // Restricción alimentaria (distinto de restrictions físicas)
+  baselineSleep     Int?      // Sueño baseline 1-10 (para dashboard)
+  baselineEnergy    Int?      // Energía baseline 1-10
+  baselineMood      Int?      // Ánimo baseline 1-10
   currentStreak     Int       @default(0)
   longestStreak     Int       @default(0)
   lastCheckInDate   DateTime?
