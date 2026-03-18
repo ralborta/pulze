@@ -196,16 +196,19 @@ function normalizePhone(phone: string): string {
 /**
  * Respuesta estándar del webhook para que BuilderBot use en "Petición HTTP" → Respuesta.
  * Incluye variables para reglas y "Enviar a otro flow" (ej. flow === "onboarding").
+ *
+ * IMPORTANTE: nombre y message se envían como string vacío (no null) cuando no hay valor,
+ * para evitar que BuilderBot concatene "null" en plantillas (ej. {{nombre}}{{flow}}).
  */
 function webhookPayload(
   message: string | null,
   opts: { flow: string; registered: boolean; nombre?: string | null }
-): { message: string | null; flow: string; registered: boolean; nombre: string | null } {
+): { message: string; flow: string; registered: boolean; nombre: string } {
   const isPlaceholderName = (n: string | null | undefined) =>
     !n || n === 'pendiente' || /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(n)
-  const nombre = opts.nombre && !isPlaceholderName(opts.nombre) ? opts.nombre : null
+  const nombre = opts.nombre && !isPlaceholderName(opts.nombre) ? opts.nombre : ''
   return {
-    message: message ?? null,
+    message: message ?? '',
     flow: opts.flow,
     registered: opts.registered,
     nombre,
