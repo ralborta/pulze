@@ -62,6 +62,27 @@ export interface AnalyticsResponse {
   engagement?: { retention7d: number; averageStreak: number }
 }
 
+export interface StandardPlan {
+  id: string
+  title: string
+  description: string | null
+  content: string
+  category: string
+  difficulty: string
+  equipment: string[]
+  duration: string | null
+  tags: string[]
+  sortOrder: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface StandardPlansResponse {
+  plans: StandardPlan[]
+  total: number
+}
+
 export const api = {
   users: {
     list: (params?: { status?: string; search?: string; page?: number; limit?: number }) => {
@@ -78,5 +99,29 @@ export const api = {
   analytics: {
     get: (days?: number) =>
       fetchApi<AnalyticsResponse>(`/admin/analytics${days ? `?days=${days}` : ''}`),
+  },
+  standardPlans: {
+    list: (params?: { category?: string; difficulty?: string; active?: string }) => {
+      const sp = new URLSearchParams()
+      if (params?.category) sp.set('category', params.category)
+      if (params?.difficulty) sp.set('difficulty', params.difficulty)
+      if (params?.active) sp.set('active', params.active)
+      const q = sp.toString()
+      return fetchApi<StandardPlansResponse>(`/admin/standard-plans${q ? `?${q}` : ''}`)
+    },
+    create: (data: Partial<StandardPlan>) =>
+      fetchApi<StandardPlan>('/admin/standard-plans', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: Partial<StandardPlan>) =>
+      fetchApi<StandardPlan>(`/admin/standard-plans/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    delete: (id: string) =>
+      fetchApi<{ message: string }>(`/admin/standard-plans/${id}`, {
+        method: 'DELETE',
+      }),
   },
 }

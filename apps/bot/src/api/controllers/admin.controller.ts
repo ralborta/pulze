@@ -344,3 +344,121 @@ export async function updateTemplate(req: AuthRequest, res: Response) {
     return res.status(500).json({ error: 'Error al actualizar plantilla' })
   }
 }
+
+/**
+ * GET /api/admin/standard-plans
+ * Listar planes estándar (base para rutinas diarias)
+ */
+export async function getStandardPlans(req: AuthRequest, res: Response) {
+  try {
+    const { category, difficulty, active } = req.query
+
+    const where: any = {}
+    if (category) where.category = category
+    if (difficulty) where.difficulty = difficulty
+    if (active === 'true') where.isActive = true
+    if (active === 'false') where.isActive = false
+
+    const plans = await prisma.standardPlan.findMany({
+      where,
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+    })
+
+    return res.json({ plans, total: plans.length })
+  } catch (error: any) {
+    console.error('Error getting standard plans:', error)
+    return res.status(500).json({ error: 'Error al obtener planes estándar' })
+  }
+}
+
+/**
+ * POST /api/admin/standard-plans
+ * Crear plan estándar
+ */
+export async function createStandardPlan(req: AuthRequest, res: Response) {
+  try {
+    const { title, description, content, category, difficulty, equipment, duration, tags, sortOrder } = req.body
+
+    if (!title || !content || !category || !difficulty) {
+      return res.status(400).json({
+        error: 'Campos requeridos: title, content, category, difficulty',
+      })
+    }
+
+    const plan = await prisma.standardPlan.create({
+      data: {
+        title,
+        description: description || null,
+        content,
+        category,
+        difficulty,
+        equipment: Array.isArray(equipment) ? equipment : [],
+        duration: duration || null,
+        tags: Array.isArray(tags) ? tags : [],
+        sortOrder: sortOrder ?? 0,
+      },
+    })
+
+    return res.status(201).json(plan)
+  } catch (error: any) {
+    console.error('Error creating standard plan:', error)
+    return res.status(500).json({ error: 'Error al crear plan estándar' })
+  }
+}
+
+/**
+ * PATCH /api/admin/standard-plans/:id
+ * Actualizar plan estándar
+ */
+export async function updateStandardPlan(req: AuthRequest, res: Response) {
+  try {
+    const { id } = req.params
+    const { title, description, content, category, difficulty, equipment, duration, tags, sortOrder, isActive } = req.body
+
+    const plan = await prisma.standardPlan.update({
+      where: { id },
+      data: {
+        ...(title && { title }),
+        ...(description !== undefined && { description }),
+        ...(content && { content }),
+        ...(category && { category }),
+        ...(difficulty && { difficulty }),
+        ...(Array.isArray(equipment) && { equipment }),
+        ...(duration !== undefined && { duration }),
+        ...(Array.isArray(tags) && { tags }),
+        ...(sortOrder !== undefined && { sortOrder }),
+        ...(isActive !== undefined && { isActive }),
+      },
+    })
+
+    return res.json(plan)
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Plan no encontrado' })
+    }
+    console.error('Error updating standard plan:', error)
+    return res.status(500).json({ error: 'Error al actualizar plan' })
+  }
+}
+
+/**
+ * DELETE /api/admin/standard-plans/:id
+ * Eliminar plan estándar
+ */
+export async function deleteStandardPlan(req: AuthRequest, res: Response) {
+  try {
+    const { id } = req.params
+
+    await prisma.standardPlan.delete({
+      where: { id },
+    })
+
+    return res.json({ message: 'Plan eliminado exitosamente' })
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Plan no encontrado' })
+    }
+    console.error('Error deleting standard plan:', error)
+    return res.status(500).json({ error: 'Error al eliminar plan' })
+  }
+}

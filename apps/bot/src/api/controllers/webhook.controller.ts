@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import { userService, prisma, checkInService } from '@pulze/database'
 import { aiService, contextService, contextUpdater, promptBuilderService } from '../../services/ai'
+import { adaptRoutineForUser } from '../../services/ai/routine-adapter.service'
 import { parseCheckInMessage } from '../../utils/checkin-parser'
 import { builderBotClient } from '../../services/builderbot'
 
@@ -325,11 +326,16 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     },
   })
 
-  // 4. Decidir tipo de respuesta según intent
+  // 4. Decidir tipo de respuesta según intent o formato
   let response: string
 
-  if (intent === 'checkin' || text.toLowerCase().includes('check')) {
-    // Check-in diario
+  const looksLikeCheckIn =
+    intent === 'checkin' ||
+    text.toLowerCase().includes('check') ||
+    parseCheckInMessage(text) != null
+
+  if (looksLikeCheckIn) {
+    // Check-in diario (o respuesta al recordatorio con formato 4, 3, bien, sí)
     response = await handleCheckIn(user.id, text, entities)
   } else if (intent === 'consulta_nutricion') {
     // Consulta sobre nutrición
@@ -632,12 +638,30 @@ async function handleCheckIn(
 
   const response = await aiService.generateResponseWithPrompt(system, userPrompt)
 
+  let finalContent = response.content
+
+  // Si va a entrenar, agregar rutina adaptada del día
+  if (parsed.willTrain) {
+    const routineResult = await adaptRoutineForUser({
+      userId,
+      checkInData: {
+        sleep: parsed.sleep,
+        energy: parsed.energy,
+        mood: parsed.mood,
+        willTrain: parsed.willTrain,
+      },
+    })
+    if (routineResult?.content) {
+      finalContent = `${response.content}\n\n---\n\n🏋️ **Tu rutina de hoy:**\n\n${routineResult.content}`
+    }
+  }
+
   await prisma.checkIn.update({
     where: { id: checkIn.id },
-    data: { aiResponse: response.content },
+    data: { aiResponse: finalContent },
   })
 
-  return response.content
+  return finalContent
 }
 
 /**

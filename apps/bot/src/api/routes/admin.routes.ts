@@ -11,6 +11,10 @@ import {
   deleteContent,
   getTemplates,
   updateTemplate,
+  getStandardPlans,
+  createStandardPlan,
+  updateStandardPlan,
+  deleteStandardPlan,
 } from '../controllers/admin.controller'
 
 const router = Router()
@@ -45,5 +49,13 @@ router.delete('/contents/:id', deleteContent)
  */
 router.get('/templates', getTemplates)
 router.patch('/templates/:id', updateTemplate)
+
+/**
+ * Standard Plans (base para rutinas diarias)
+ */
+router.get('/standard-plans', getStandardPlans)
+router.post('/standard-plans', createStandardPlan)
+router.patch('/standard-plans/:id', updateStandardPlan)
+router.delete('/standard-plans/:id', deleteStandardPlan)
 
 export default router

@@ -5,10 +5,12 @@ import {
   getInactive,
   getActive,
   getMilestones,
+  getStandardPlans,
   generateReminder,
   generateReactivation,
   generateCelebration,
   generateWeeklyReport,
+  adaptRoutine,
   sendProactiveMessage,
 } from '../controllers/n8n.controller'
 
@@ -21,10 +23,13 @@ router.get('/users/inactive', getInactive)
 router.get('/users/active', getActive)
 router.get('/users/milestones', getMilestones)
 
+router.get('/standard-plans', getStandardPlans)
+
 router.post('/openai/generate-reminder', generateReminder)
 router.post('/openai/generate-reactivation', generateReactivation)
 router.post('/openai/generate-celebration', generateCelebration)
 router.post('/openai/generate-weekly-report', generateWeeklyReport)
+router.post('/openai/adapt-routine', adaptRoutine)
 
 router.post('/proactive-messages', sendProactiveMessage)
 

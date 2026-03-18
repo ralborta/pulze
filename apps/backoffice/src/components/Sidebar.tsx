@@ -10,13 +10,15 @@ import {
   MessageSquare, 
   BarChart3,
   Settings,
-  LogOut
+  LogOut,
+  Dumbbell
 } from 'lucide-react'
 
 const navItems = [
   { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/usuarios', icon: Users, label: 'Usuarios' },
   { href: '/contenidos', icon: FileText, label: 'Contenidos' },
+  { href: '/planes-rutinas', icon: Dumbbell, label: 'Planes rutinas' },
   { href: '/plantillas', icon: MessageSquare, label: 'Plantillas' },
   { href: '/analytics', icon: BarChart3, label: 'Analytics' },
   { href: '/settings', icon: Settings, label: 'Configuración' },

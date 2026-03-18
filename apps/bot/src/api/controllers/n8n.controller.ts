@@ -269,6 +269,65 @@ export async function generateWeeklyReport(req: Request, res: Response) {
 }
 
 /**
+ * GET /api/n8n/standard-plans
+ * Planes estándar activos para que n8n/IA los use.
+ * Query: difficulty, category (opcionales).
+ */
+export async function getStandardPlans(req: Request, res: Response) {
+  try {
+    const { difficulty, category } = req.query
+
+    const where: any = { isActive: true }
+    if (difficulty) where.difficulty = difficulty
+    if (category) where.category = category
+
+    const plans = await prisma.standardPlan.findMany({
+      where,
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+    })
+
+    return res.json({ plans, total: plans.length })
+  } catch (error: any) {
+    console.error('Error getStandardPlans:', error)
+    return res.status(500).json({ error: 'Error al obtener planes estándar' })
+  }
+}
+
+/**
+ * POST /api/n8n/openai/adapt-routine
+ * Body: { userId, planId?, checkInData? }
+ * Adapta un plan estándar al usuario. Si no hay planId, la IA elige uno según nivel/restricciones.
+ */
+export async function adaptRoutine(req: Request, res: Response) {
+  try {
+    const { userId, planId, checkInData } = req.body as {
+      userId?: string
+      planId?: string
+      checkInData?: { sleep?: number; energy?: number; mood?: string; willTrain?: boolean }
+    }
+    if (!userId) return res.status(400).json({ error: 'userId requerido' })
+
+    const { adaptRoutineForUser } = await import('../../services/ai/routine-adapter.service')
+    const result = await adaptRoutineForUser({ userId, planId, checkInData })
+
+    if (!result) {
+      return res.json({
+        content: 'No hay planes estándar configurados. Agregá planes desde el backoffice.',
+      })
+    }
+
+    return res.json({
+      content: result.content,
+      planId: result.planId,
+      planTitle: result.planTitle,
+    })
+  } catch (error: any) {
+    console.error('Error adaptRoutine:', error)
+    return res.status(500).json({ error: 'Error al adaptar rutina' })
+  }
+}
+
+/**
  * POST /api/n8n/proactive-messages
  * Body: { userId, content, messageType }
  * Envía el mensaje por BuilderBot y guarda en ProactiveMessage.

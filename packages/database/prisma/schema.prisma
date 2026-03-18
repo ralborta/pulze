@@ -107,6 +107,28 @@ model Content {
   @@index([isActive])
 }
 
+// Planes estándar: base que los admins crean. La IA los adapta por usuario.
+model StandardPlan {
+  id          String   @id @default(uuid())
+  title       String   // "Rutina full body 15 min", "Cardio casa 20 min"
+  description String?  // Descripción para admins
+  content     String   @db.Text // Plantilla: ejercicios, series, reps. La IA adapta según restricciones/nivel.
+  category    String   // "Full body", "Cardio", "Piernas", "Superior", etc.
+  difficulty  String   // "Principiante", "Intermedio", "Avanzado"
+  equipment   String[] // ["casa", "sin equipo"], ["gimnasio", "mancuernas"], etc.
+  duration    String?  // "15 min", "20 min", "30 min"
+  tags        String[] // ["principiante", "casa", "recuperación"]
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([category])
+  @@index([difficulty])
+  @@index([isActive])
+}
+
 model MessageTemplate {
   id          String   @id @default(uuid())
   key         String   @unique   // "welcome", "checkin_morning", "weekly_summary", etc.
