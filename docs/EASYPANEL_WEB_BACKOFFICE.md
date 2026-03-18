@@ -22,13 +22,18 @@ Para que se vean la **WebApp** y el **Backoffice** además del bot, creá dos ap
   - **Root directory / Build context:** raíz del repo (vacío o `.`). No uses `apps/backoffice`.
 - **Puerto:** `3000`.
 - **Dominio:** Ej. `backoffice.tudominio.com`.
+- **Variables de entorno** (obligatorias para que funcione con datos reales):
+  - `BOT_API_URL` → URL interna del bot. En Easypanel usá el nombre del servicio: `http://nombre-del-bot:3001/api` (ej. si el bot se llama `pulze-bot`: `http://pulze-bot:3001/api`). O la URL externa si tenés dominio: `https://api.tudominio.com/api`.
+  - `BACKOFFICE_API_KEY` → Clave secreta. La misma que configurás en el bot como `BACKOFFICE_API_KEY` (para que el backoffice pueda llamar al API admin).
 
 ## Resumen
 
-| Servicio   | Dockerfile path              | Puerto |
-|-----------|------------------------------|--------|
-| Bot/API   | `Dockerfile` (raíz)          | 3001   |
-| WebApp    | `apps/web/Dockerfile`        | 3000   |
-| Backoffice| `apps/backoffice/Dockerfile` | 3000   |
+| Servicio   | Dockerfile path              | Puerto | Env vars clave |
+|-----------|------------------------------|--------|----------------|
+| Bot/API   | `Dockerfile` (raíz)          | 3001   | `DATABASE_URL`, `BUILDERBOT_*`, `BACKOFFICE_API_KEY` |
+| WebApp    | `apps/web/Dockerfile`        | 3000   | - |
+| Backoffice| `apps/backoffice/Dockerfile` | 3000   | `BOT_API_URL`, `BACKOFFICE_API_KEY` |
 
 Los tres usan el **mismo repositorio**; en cada app solo cambiás el **Dockerfile path** y el dominio/puerto.
+
+**Importante:** En Easypanel, el backoffice **no** usa localhost. Debés configurar `BOT_API_URL` con la URL del bot: interna (`http://nombre-servicio-bot:3001/api`) o externa si tenés dominio.

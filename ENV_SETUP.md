@@ -26,6 +26,10 @@ WEBAPP_URL="https://pulze-web.vercel.app"
 BACKOFFICE_URL="https://pulze-backoffice.vercel.app"
 BOT_URL="https://your-railway-bot.up.railway.app"
 
+# Backoffice (solo si usás el panel admin)
+BOT_API_URL="http://localhost:3001/api"   # Dev: localhost. Easypanel: http://nombre-bot:3001/api (ver docs/EASYPANEL_WEB_BACKOFFICE.md)
+BACKOFFICE_API_KEY="tu-clave-secreta"      # Clave para que el backoffice llame al API admin (la misma en bot y backoffice)
+
 # Environment
 NODE_ENV="development"
 PORT=3001

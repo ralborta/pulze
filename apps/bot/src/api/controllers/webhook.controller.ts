@@ -441,31 +441,34 @@ async function handleOnboarding(
       `Confirmalo con entusiasmo. Preguntale su edad (en años). Una sola pregunta. ` +
       `NO repitas el mensaje de bienvenida.`
 
-  // Paso 2: edad
+  // Paso 2: edad (Bloque 1 — Datos iniciales)
   } else if (u.age == null) {
-    const age = msg && /^\d+$/.test(msg) ? parseInt(msg, 10) : null
-    if (age != null) await userService.update(userId, { age })
+    const ageMatch = msg?.match(/\d+/)
+    const age = ageMatch ? parseInt(ageMatch[0], 10) : null
+    if (age != null && age >= 10 && age <= 120) await userService.update(userId, { age })
     task =
       `El usuario ${user.name}, ${age ?? '?'} años. ` +
-      `Preguntale su altura en cm (ej: 170). Una sola pregunta.`
+      `Preguntale SOLO su altura en cm (ej: 170). Una pregunta. Podés decir que puede agregar info si quiere.`
 
-  // Paso 3: altura (cm)
+  // Paso 3: altura (Bloque 1)
   } else if (u.heightCm == null) {
-    const h = msg && /^\d+$/.test(msg) ? parseInt(msg, 10) : null
-    if (h != null) await userService.update(userId, { heightCm: h })
+    const hMatch = msg?.match(/\d+/)
+    const h = hMatch ? parseInt(hMatch[0], 10) : null
+    if (h != null && h >= 100 && h <= 250) await userService.update(userId, { heightCm: h })
     task =
       `El usuario ${user.name}, ${u.age} años, altura ${h ?? '?'} cm. ` +
-      `Preguntale su peso actual en kg (ej: 75). Una sola pregunta.`
+      `Preguntale SOLO su peso actual en kg (ej: 75). Una pregunta. Podés decir que puede agregar info si quiere.`
 
-  // Paso 4: peso (kg)
+  // Paso 4: peso (Bloque 1)
   } else if (u.weightKg == null) {
-    const w = msg && /^\d+(\.\d+)?$/.test(msg) ? parseFloat(msg) : null
-    if (w != null) await userService.update(userId, { weightKg: w })
+    const wMatch = msg?.replace(',', '.').match(/\d+(\.\d+)?/)
+    const w = wMatch ? parseFloat(wMatch[0]) : null
+    if (w != null && w >= 30 && w <= 300) await userService.update(userId, { weightKg: w })
     task =
       `El usuario ${user.name}, ${u.age} años, ${u.heightCm} cm, ${w ?? '?'} kg. ` +
-      `Preguntale su nivel de actividad: 1 Sedentario, 2 Ligero, 3 Moderado, 4 Alto. Una sola pregunta.`
+      `Nueva sección: nivel de actividad. Pedile que elija 1 Sedentario, 2 Ligero, 3 Moderado, 4 Alto. Una sola pregunta.`
 
-  // Paso 5: nivel de actividad
+  // Paso 5: nivel de actividad (Bloque 2)
   } else if (!u.activityLevel || u.activityLevel === '') {
     let level: string | null = null
     if (msg) {
@@ -477,60 +480,74 @@ async function handleOnboarding(
     if (level) await userService.update(userId, { activityLevel: level })
     task =
       `El usuario ${user.name}, actividad: ${level || 'pendiente'}. ` +
-      `Preguntale si tiene alguna lesión o limitación física. Si no, que escriba "ninguna". Una sola pregunta.`
+      `Nueva sección: restricciones. Preguntale si tiene lesión o limitación física. Si no, "ninguna". Una pregunta. Decile que puede agregar detalles si quiere.`
 
-  // Paso 6: restricciones físicas
+  // Paso 6: restricciones físicas (Bloque 3)
   } else if (user.restrictions == null || user.restrictions === '') {
     const restrictions = msg && /ningun[oa]|nada|no tengo/i.test(msg) ? 'ninguna' : (msg?.trim() || null)
     if (restrictions) await userService.update(userId, { restrictions })
     task = restrictions
-      ? `El usuario ${user.name}. Restricciones: ${restrictions}. Sobre alimentación: preguntale cuántas comidas hace por día. Una sola pregunta.`
-      : `Preguntale si tiene lesión o limitación física. Si no, "ninguna". Una sola pregunta.`
+      ? `El usuario ${user.name}. Restricciones: ${restrictions}. ` +
+        `Nueva sección: alimentación. Preguntale SOLO cuántas comidas hace por día. Una pregunta. Decile que puede agregar info si quiere.`
+      : `Preguntale si tiene lesión o limitación física. Si no, "ninguna". Una pregunta. Decile que puede agregar detalles si quiere.`
 
-  // Paso 7: comidas por día
+  // Paso 7: comidas por día (Bloque 4)
   } else if (u.mealsPerDay == null) {
-    const meals = msg && /^\d+$/.test(msg) ? parseInt(msg, 10) : null
-    if (meals != null) await userService.update(userId, { mealsPerDay: meals })
+    const mealsMatch = msg?.match(/\d+/)
+    const meals = mealsMatch ? parseInt(mealsMatch[0], 10) : null
+    if (meals != null && meals >= 1 && meals <= 10) await userService.update(userId, { mealsPerDay: meals })
     task =
       `El usuario ${user.name}, ${meals ?? '?'} comidas/día. ` +
-      `Preguntale si consume suficiente proteína. Opciones: Sí, No, No sé. Una sola pregunta.`
+      `Preguntale SOLO si consume suficiente proteína. Opciones: Sí, No, No sé. Una pregunta.`
 
-  // Paso 8: proteína suficiente
+  // Paso 8: proteína suficiente (Bloque 4)
   } else if (!u.proteinEnough || u.proteinEnough === '') {
     let protein: string | null = null
     if (msg) {
-      if (/^s[ií]$|si\b/i.test(msg)) protein = 'sí'
-      else if (/^no$/i.test(msg)) protein = 'no'
-      else if (/no\s*s[eé]|no se/i.test(msg)) protein = 'no_sé'
+      if (/s[ií]|si\b|bastante|suficiente/i.test(msg) && !/no\s*s[eé]|no se/i.test(msg)) protein = 'sí'
+      else if (/^no\b|no consumo|poco/i.test(msg)) protein = 'no'
+      else if (/no\s*s[eé]|no se|maso menos|depende/i.test(msg)) protein = 'no_sé'
     }
     if (protein) await userService.update(userId, { proteinEnough: protein })
     task =
       `El usuario ${user.name}, proteína: ${protein || 'pendiente'}. ` +
-      `Preguntale si tiene restricción alimentaria (celiaquía, vegan, etc). Si no, "ninguna". Una sola pregunta.`
+      `Preguntale SOLO si tiene restricción alimentaria (celiaquía, vegan, etc). Si no, "ninguna". Una pregunta. Decile que puede agregar detalles si quiere.`
 
-  // Paso 9: restricción alimentaria
+  // Paso 9: restricción alimentaria (Bloque 4)
   } else if (u.dietaryRestriction == null || u.dietaryRestriction === '') {
     const dietary = msg && /ningun[oa]|nada|no tengo/i.test(msg) ? 'ninguna' : (msg?.trim() || null)
     if (dietary) await userService.update(userId, { dietaryRestriction: dietary })
     const hasDietary = !!(dietary && dietary.length > 0)
     task = hasDietary
-      ? `El usuario ${user.name} completó datos nutricionales. ` +
-        `Ahora pedile que califique del 1 al 10: Sueño, Energía, Ánimo (actual). Ejemplo: "7, 6, 8". Una sola pregunta.`
-      : `Preguntale si tiene restricción alimentaria (celiaquía, vegan, etc). Si no, "ninguna". Una sola pregunta.`
+      ? `El usuario ${user.name} completó datos de alimentación. ` +
+        `Nueva sección: estado actual. Pedile SOLO que califique su sueño del 1 al 10 (cómo duerme hoy). Una pregunta. Decile que puede agregar info si quiere.`
+      : `Preguntale si tiene restricción alimentaria. Si no, "ninguna". Una pregunta. Decile que puede agregar detalles si quiere.`
 
-  // Paso 10: baseline (sueño, energía, ánimo)
-  } else if (u.baselineSleep == null || u.baselineEnergy == null || u.baselineMood == null) {
-    const parts = msg ? msg.replace(/,/g, ' ').split(/\s+/).filter(Boolean) : []
-    const nums = parts.map((p) => parseInt(p, 10)).filter((n) => !isNaN(n) && n >= 1 && n <= 10)
-    if (nums.length >= 3) {
-      await userService.update(userId, {
-        baselineSleep: nums[0],
-        baselineEnergy: nums[1],
-        baselineMood: nums[2],
-      })
-    }
+  // Paso 10: baseline sueño (Bloque 5)
+  } else if (u.baselineSleep == null) {
+    const nMatch = msg?.match(/\d+/)
+    const n = nMatch ? parseInt(nMatch[0], 10) : null
+    if (n != null && n >= 1 && n <= 10) await userService.update(userId, { baselineSleep: n })
+    task =
+      `El usuario ${user.name}, sueño: ${n ?? '?'}/10. ` +
+      `Pedile SOLO que califique su energía del 1 al 10 (cómo se siente hoy). Una pregunta.`
+
+  // Paso 11: baseline energía (Bloque 5)
+  } else if (u.baselineEnergy == null) {
+    const nMatch = msg?.match(/\d+/)
+    const n = nMatch ? parseInt(nMatch[0], 10) : null
+    if (n != null && n >= 1 && n <= 10) await userService.update(userId, { baselineEnergy: n })
+    task =
+      `El usuario ${user.name}, energía: ${n ?? '?'}/10. ` +
+      `Pedile SOLO que califique su ánimo del 1 al 10 (cómo está emocionalmente hoy). Una pregunta.`
+
+  // Paso 12: baseline ánimo (Bloque 5)
+  } else if (u.baselineMood == null) {
+    const nMatch = msg?.match(/\d+/)
+    const n = nMatch ? parseInt(nMatch[0], 10) : null
+    if (n != null && n >= 1 && n <= 10) await userService.update(userId, { baselineMood: n })
     const updated = await userService.findById(userId) as (typeof user & UserOnboardingFields) | null
-    if (updated?.baselineSleep != null && updated?.baselineEnergy != null && updated?.baselineMood != null) {
+    if (updated?.baselineMood != null) {
       await userService.update(userId, { onboardingComplete: true })
       if (!user.goal || user.goal === 'pendiente') {
         await userService.update(userId, { goal: 'bienestar' })
@@ -539,9 +556,7 @@ async function handleOnboarding(
         `El usuario ${user.name} completó el onboarding. Baseline: Sueño ${updated.baselineSleep}, Energía ${updated.baselineEnergy}, Ánimo ${updated.baselineMood}. ` +
         `Confirmale que está todo listo y preguntale a qué hora prefiere su check-in diario. Mensaje de cierre cálido.`
     } else {
-      task =
-        `El usuario ${user.name}. Pedile que califique del 1 al 10: Sueño, Energía, Ánimo. ` +
-        `Ejemplo: "7, 6, 8". Una sola pregunta.`
+      task = `Pedile que califique su ánimo del 1 al 10. Una pregunta.`
     }
   } else {
     await userService.update(userId, { onboardingComplete: true })
@@ -552,13 +567,17 @@ async function handleOnboarding(
 
   const updatedUser = await userService.findById(userId)
   const nombre = updatedUser?.name ?? user.name
-  const instructions = promptBuilderService.buildInstructions(task, {
-    name: user.name,
-    goal: user.goal !== 'pendiente' ? user.goal : undefined,
-    restrictions: user.restrictions,
-    bodyData: user.bodyData,
-    streak: user.currentStreak,
-  })
+  const instructions = promptBuilderService.buildInstructions(
+    task,
+    {
+      name: user.name,
+      goal: user.goal !== 'pendiente' ? user.goal : undefined,
+      restrictions: user.restrictions,
+      bodyData: user.bodyData,
+      streak: user.currentStreak,
+    },
+    { onboardingMode: true }
+  )
 
   return { nombre: nombre === 'pendiente' ? '' : nombre, instructions }
 }

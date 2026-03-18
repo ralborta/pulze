@@ -277,7 +277,8 @@ Total: ${weeklyCheckIns.length}/7 check-ins`
       bodyData?: string | null
       streak?: number
       conversationSummary?: string | null
-    }
+    },
+    options?: { onboardingMode?: boolean }
   ): string {
     const parts: string[] = [this.getSystemIdentity()]
 
@@ -292,6 +293,10 @@ Total: ${weeklyCheckIns.length}/7 check-ins`
       if (ctx.length > 0) {
         parts.push(`\nCONTEXTO DEL USUARIO:\n${ctx.join('\n')}`)
       }
+    }
+
+    if (options?.onboardingMode) {
+      parts.push(`\nREGLA ONBOARDING: Una pregunta por vez. No juntes varias en un mensaje. Si el usuario agrega información extra, aceptala.`)
     }
 
     parts.push(`\nTAREA PARA ESTE TURNO:\n${task}`)

@@ -39,14 +39,24 @@ export function authenticateToken(
 
 /**
  * Middleware para rutas de admin (backoffice)
+ * Acepta: JWT Bearer token O API key (BACKOFFICE_API_KEY) en X-API-Key o Bearer
  */
 export function authenticateAdmin(
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ) {
-  // TODO: Implementar lógica de admin (verificar rol, permisos, etc.)
-  // Por ahora solo verifica que haya token válido
+  const apiKey = process.env.BACKOFFICE_API_KEY || process.env.ADMIN_API_KEY
+  const provided =
+    req.headers['x-api-key'] ||
+    (req.headers['authorization']?.startsWith('Bearer ')
+      ? req.headers['authorization'].slice(7)
+      : null)
+
+  if (apiKey && provided && provided === apiKey) {
+    return next()
+  }
+
   authenticateToken(req, res, next)
 }
 

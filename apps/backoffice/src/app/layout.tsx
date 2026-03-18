@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { Sidebar } from '@/components/Sidebar'
+import { Providers } from '@/components/Providers'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -18,6 +19,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`${inter.className} bg-pulze-gradient text-white`}>
+        <Providers>
         {/* Animated background */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl animate-float"></div>
@@ -30,6 +32,7 @@ export default function RootLayout({
             {children}
           </main>
         </div>
+        </Providers>
       </body>
     </html>
   )

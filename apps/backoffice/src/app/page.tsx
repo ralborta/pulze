@@ -1,8 +1,22 @@
 'use client'
 
+import Link from 'next/link'
+import { useQuery } from '@tanstack/react-query'
 import { Users, Activity, TrendingUp, MessageSquare, Flame, Clock } from 'lucide-react'
+import { api } from '@/lib/api'
 
 export default function BackofficePage() {
+  const { data: usersData } = useQuery({
+    queryKey: ['users', 'recent'],
+    queryFn: () => api.users.list({ limit: 5 }),
+  })
+  const { data: analytics } = useQuery({
+    queryKey: ['analytics'],
+    queryFn: () => api.analytics.get(7),
+  })
+  const recentUsers = usersData?.users ?? []
+  const userStats = analytics?.users
+
   return (
     <>
       {/* Header */}
@@ -15,29 +29,33 @@ export default function BackofficePage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
           title="Usuarios Totales"
-          value="1,234"
-          change="+12%"
+          value={String(userStats?.total ?? usersData?.total ?? '-')}
+          change=""
           icon={<Users className="w-6 h-6" />}
           color="blue"
         />
         <StatCard
           title="Usuarios Activos"
-          value="856"
-          change="+8%"
+          value={String(userStats?.active ?? '-')}
+          change=""
           icon={<Activity className="w-6 h-6" />}
           color="green"
         />
         <StatCard
           title="Check-ins Hoy"
-          value="432"
-          change="+15%"
+          value={String(analytics?.checkIns?.todayCount ?? '-')}
+          change=""
           icon={<MessageSquare className="w-6 h-6" />}
           color="purple"
         />
         <StatCard
           title="Retención 7d"
-          value="78%"
-          change="+3%"
+          value={
+            analytics?.engagement?.retention7d != null
+              ? `${analytics.engagement.retention7d}%`
+              : '-'
+          }
+          change=""
           icon={<TrendingUp className="w-6 h-6" />}
           color="orange"
         />
@@ -48,39 +66,27 @@ export default function BackofficePage() {
         <div className="lg:col-span-2 glass rounded-3xl p-6">
           <h2 className="text-xl font-semibold mb-6 text-white">Usuarios Recientes</h2>
           <div className="space-y-4">
-            <UserRow 
-              name="María González" 
-              phone="+54 9 11 1234-5678" 
-              status="Activo" 
-              streak={7}
-              email="maria@example.com"
-            />
-            <UserRow 
-              name="Juan Pérez" 
-              phone="+54 9 11 8765-4321" 
-              status="Activo" 
-              streak={12}
-              email="juan@example.com"
-            />
-            <UserRow 
-              name="Ana Martínez" 
-              phone="+54 9 11 2345-6789" 
-              status="Inactivo" 
-              streak={3}
-              email="ana@example.com"
-            />
-            <UserRow 
-              name="Carlos Ruiz" 
-              phone="+54 9 11 3456-7890" 
-              status="Activo" 
-              streak={5}
-              email="carlos@example.com"
-            />
+            {recentUsers.length === 0 && (
+              <p className="text-gray-400 text-sm">No hay usuarios aún</p>
+            )}
+            {recentUsers.map((u) => (
+              <UserRow
+                key={u.id}
+                name={u.name}
+                phone={u.phone}
+                status={u.isActive ? 'Activo' : 'Inactivo'}
+                streak={u.currentStreak ?? 0}
+                email={u.email ?? '-'}
+              />
+            ))}
           </div>
 
-          <button className="mt-6 w-full py-3 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl text-cyan-400 font-medium transition">
+          <Link
+            href="/usuarios"
+            className="mt-6 block w-full py-3 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl text-cyan-400 font-medium transition text-center"
+          >
             Ver todos los usuarios
-          </button>
+          </Link>
         </div>
 
         {/* Quick Stats */}
