@@ -244,15 +244,16 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
 
   if (!phone) {
     // Sin teléfono (ej. prueba del panel de BuilderBot con @from sin resolver):
-    // igual enviamos instructions de bienvenida al agente para que la prueba sea realista.
     console.warn('⚠️ Webhook sin "from" válido (posiblemente prueba de BuilderBot):', event.from)
     const instructions = promptBuilderService.buildInstructions(
       'Es el primer mensaje del usuario. Saludalo con calidez, presentate como PULZE su coach de bienestar, y preguntale cómo se llama. Una sola pregunta. Máximo 4 líneas.',
       {}
     )
     await pushInstructionsToBuilderBot(instructions)
+    const msgNoPhone =
+      '¡Hola! Soy PULZE, tu coach de bienestar. Ahora te toca registrarte para armar tu plan a medida. ¿Cómo te llamo o cómo querés que te llame?'
     return res.status(200).json(
-      webhookPayload(null, { flow: 'onboarding', registered: false, nombre: null })
+      webhookPayload(msgNoPhone, { flow: 'onboarding', registered: false, nombre: null })
     )
   }
 
@@ -266,15 +267,19 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
   if (!user) {
     await handleNewUser(phone, text)
     console.log('🆕 Usuario nuevo → instructions enviadas a BuilderBot')
-    return res.json(webhookPayload(null, { flow: 'onboarding', registered: false }))
+    const msgNewUser =
+      '¡Bienvenido! Soy PULZE, tu coach de bienestar. Ahora te toca registrarte para armar tu plan a medida. ¿Cómo te llamo o cómo querés que te llame?'
+    return res.json(webhookPayload(msgNewUser, { flow: 'onboarding', registered: false }))
   }
 
   // Si no completó onboarding → avanzar paso + enviar instructions a BuilderBot
   if (!user.onboardingComplete) {
     await handleOnboarding(user.id, text, intent)
     const updatedUser = await userService.findById(user.id)
+    const nombre = updatedUser?.name ?? user.name
+    // Durante onboarding: el agente usa las instructions para la siguiente pregunta (objetivo, restricciones, etc.)
     return res.json(
-      webhookPayload(null, { flow: 'onboarding', registered: true, nombre: updatedUser?.name ?? user.name })
+      webhookPayload('', { flow: 'onboarding', registered: true, nombre })
     )
   }
 
