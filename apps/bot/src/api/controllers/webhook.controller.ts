@@ -267,14 +267,18 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     return res.json(webhookPayload(msgNewUser, { flow: 'onboarding', registered: false }))
   }
 
-  // Si no completó onboarding → enviar instructions al Plugin Assistant y devolver message "vacío".
+  // Si no completó onboarding → primero JSON, después instructions.
   // Zero-width space (\u200B): borra el {message} antiguo sin que el usuario vea nada.
   if (!user.onboardingComplete) {
-    const { nombre: onboardingNombre } = await handleOnboarding(user.id, text, intent)
+    const { nombre: onboardingNombre, instructions } = await handleOnboarding(user.id, text, intent)
     const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
-    return res.json(
-      webhookPayload('\u200B', { flow: 'onboarding', registered: true, nombre })
-    )
+    res.json(webhookPayload('\u200B', { flow: 'onboarding', registered: true, nombre }))
+    if (instructions) {
+      pushInstructionsToBuilderBot(instructions).catch((err) =>
+        console.error('❌ Error enviando instructions a BuilderBot:', err)
+      )
+    }
+    return
   }
 
   // Si el bot está desactivado (operador humano atiende), solo guardar mensaje y no responder
@@ -403,9 +407,9 @@ async function handleOnboarding(
   userId: string,
   message: string,
   _intent?: string
-): Promise<{ nombre: string }> {
+): Promise<{ nombre: string; instructions: string }> {
   const user = await userService.findById(userId)
-  if (!user) return { nombre: '' }
+  if (!user) return { nombre: '', instructions: '' }
 
   let msg = (message || '').trim()
   if (/^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(msg)) msg = ''
@@ -482,11 +486,9 @@ async function handleOnboarding(
     streak: user.currentStreak,
   })
 
-  await pushInstructionsToBuilderBot(instructions)
-
   const updatedUser = await userService.findById(userId)
   const nombre = updatedUser?.name ?? user.name
-  return { nombre: nombre === 'pendiente' ? '' : nombre }
+  return { nombre: nombre === 'pendiente' ? '' : nombre, instructions }
 }
 
 /**
