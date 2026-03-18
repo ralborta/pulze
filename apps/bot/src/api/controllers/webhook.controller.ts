@@ -268,11 +268,11 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
   }
 
   // Si no completó onboarding → primero JSON, después instructions.
-  // Zero-width space (\u200B): borra el {message} antiguo sin que el usuario vea nada.
+  // "ok" para probar si el flow reemplaza el {message} antiguo (antes: zero-width space).
   if (!user.onboardingComplete) {
     const { nombre: onboardingNombre, instructions } = await handleOnboarding(user.id, text, intent)
     const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
-    res.json(webhookPayload('\u200B', { flow: 'onboarding', registered: true, nombre }))
+    res.json(webhookPayload('ok', { flow: 'onboarding', registered: true, nombre }))
     if (instructions) {
       pushInstructionsToBuilderBot(instructions).catch((err) =>
         console.error('❌ Error enviando instructions a BuilderBot:', err)
