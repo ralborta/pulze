@@ -6,11 +6,21 @@
 2. **PULZE responde** con `{ message, flow, registered, nombre }`
 3. **BuilderBot usa** esos campos según cómo esté armado tu flow
 
+## APIs de BuilderBot que usa PULZE
+
+| Endpoint | Uso |
+|----------|-----|
+| `POST /api/v2/{id}/clear-conversation` | Limpia el historial con el contacto antes del 2º mensaje en onboarding. Evita que el Plugin Assistant repita el mensaje de bienvenida. |
+| `POST /api/v2/{id}/answer/{answerId}/plugin/assistant` | Actualiza las instructions (prompt) del asistente. |
+| `POST /api/v2/{id}/mute` | Silenciar/activar bot (global). Útil si el flow responde antes del webhook. |
+
+---
+
 ## ⚠️ Evitar doble respuesta y mensajes repetidos
 
 **Problema:** Si el flow envía el mensaje del webhook Y además usa el Plugin Assistant, el usuario recibe dos mensajes. O el mensaje de bienvenida se repite cuando ya no corresponde.
 
-**Solución:** PULZE **siempre** devuelve el mensaje en el webhook para onboarding. El flow de BuilderBot debe:
+**Solución:** PULZE limpia el historial (`clear-conversation`) en el 2º mensaje del onboarding y devuelve `message` con zero-width space. El flow de BuilderBot debe:
 
 1. **Solo enviar** el campo `message` de la respuesta del webhook
 2. **No enviar** al Plugin Assistant cuando el webhook devuelve un mensaje

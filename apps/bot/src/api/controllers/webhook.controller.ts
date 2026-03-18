@@ -267,9 +267,12 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     return res.json(webhookPayload(msgNewUser, { flow: 'onboarding', registered: false }))
   }
 
-  // Si no completó onboarding → primero JSON, después instructions.
-  // Zero-width space (\u200B): borra el {message} antiguo sin que el usuario vea nada.
+  // Si no completó onboarding → limpiar historial, primero JSON, después instructions.
+  // clearConversation evita que el Plugin Assistant repita el mensaje de bienvenida.
   if (!user.onboardingComplete) {
+    await builderBotClient.clearConversation(event.from).catch((err) =>
+      console.warn('⚠️ clear-conversation falló (no crítico):', err?.message)
+    )
     const { nombre: onboardingNombre, instructions } = await handleOnboarding(user.id, text, intent)
     const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
     res.json(webhookPayload('\u200B', { flow: 'onboarding', registered: true, nombre }))

@@ -208,6 +208,58 @@ export class BuilderBotClient {
     }
   }
 
+  /** Base URL API v2 de BuilderBot Cloud (clear-conversation, mute, assistant). */
+  private getApiV2Base(): string {
+    return (process.env.BUILDERBOT_ASSISTANT_API_URL || process.env.BUILDERBOT_API_URL || 'https://app.builderbot.cloud/api/v2').replace(/\/$/, '')
+  }
+
+  /**
+   * Limpiar historial de conversación con un contacto.
+   * Doc: POST /api/v2/{id}/clear-conversation
+   * Evita que el Plugin Assistant repita mensajes anteriores (ej. bienvenida).
+   */
+  async clearConversation(phone: string): Promise<{ success: boolean; error?: string }> {
+    if (!this.botId || !this.apiKey) {
+      return { success: false, error: 'BUILDERBOT_BOT_ID o BUILDERBOT_API_KEY no configurados' }
+    }
+    const number = phone.replace(/^\+/, '').replace(/\s+/g, '').trim()
+    if (!number) return { success: false, error: 'Número vacío' }
+    try {
+      const url = `${this.getApiV2Base()}/${this.botId}/clear-conversation`
+      await axios.post(url, { number }, {
+        headers: { 'Content-Type': 'application/json', 'x-api-builderbot': this.apiKey },
+        timeout: 10000,
+      })
+      console.log('✅ Conversación limpiada en BuilderBot:', number.slice(0, 6) + '***')
+      return { success: true }
+    } catch (error: any) {
+      console.error('❌ Error clear-conversation:', error.response?.data || error.message)
+      return { success: false, error: error.response?.data?.message || error.message }
+    }
+  }
+
+  /**
+   * Silenciar o activar el bot (global).
+   * Doc: POST /api/v2/{id}/mute con { "flag": true } (silenciar) o { "flag": false } (activar)
+   */
+  async mute(flag: boolean): Promise<{ success: boolean; error?: string }> {
+    if (!this.botId || !this.apiKey) {
+      return { success: false, error: 'BUILDERBOT_BOT_ID o BUILDERBOT_API_KEY no configurados' }
+    }
+    try {
+      const url = `${this.getApiV2Base()}/${this.botId}/mute`
+      await axios.post(url, { flag }, {
+        headers: { 'Content-Type': 'application/json', 'x-api-builderbot': this.apiKey },
+        timeout: 10000,
+      })
+      console.log('✅ Bot', flag ? 'silenciado' : 'activado')
+      return { success: true }
+    } catch (error: any) {
+      console.error('❌ Error mute:', error.response?.data || error.message)
+      return { success: false, error: error.response?.data || error.message }
+    }
+  }
+
   /**
    * Actualizar las instrucciones (system prompt) del Agente de IA en BuilderBot.
    * Doc oficial: POST /api/v2/{id}/answer/{answerId}/plugin/assistant
@@ -222,10 +274,8 @@ export class BuilderBotClient {
     if (!this.botId || !this.apiKey) {
       return { success: false, error: 'BUILDERBOT_BOT_ID o BUILDERBOT_API_KEY no configurados' }
     }
-    // BuilderBot Cloud API v2: app.builderbot.cloud (wa-api.builderbot.app da 404 para assistant)
-    const assistantBase = (process.env.BUILDERBOT_ASSISTANT_API_URL || process.env.BUILDERBOT_API_URL || 'https://app.builderbot.cloud/api/v2').replace(/\/$/, '')
     try {
-      const url = `${assistantBase}/${this.botId}/answer/${answerId}/plugin/assistant`
+      const url = `${this.getApiV2Base()}/${this.botId}/answer/${answerId}/plugin/assistant`
       const response = await axios.post(
         url,
         { instructions },
