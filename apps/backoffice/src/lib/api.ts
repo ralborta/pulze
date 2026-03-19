@@ -83,6 +83,45 @@ export interface StandardPlansResponse {
   total: number
 }
 
+export interface Content {
+  id: string
+  category: string
+  type: string
+  title: string
+  description: string
+  content: string
+  tags: string[]
+  difficulty: string | null
+  duration: string | null
+  viewCount: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ContentsResponse {
+  contents: Content[]
+  total: number
+}
+
+export interface MessageTemplate {
+  id: string
+  key: string
+  type: string
+  name: string
+  content: string
+  variables: string[]
+  usageCount: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TemplatesResponse {
+  templates: MessageTemplate[]
+  total: number
+}
+
 export const api = {
   users: {
     list: (params?: { status?: string; search?: string; page?: number; limit?: number }) => {
@@ -99,6 +138,29 @@ export const api = {
   analytics: {
     get: (days?: number) =>
       fetchApi<AnalyticsResponse>(`/admin/analytics${days ? `?days=${days}` : ''}`),
+  },
+  contents: {
+    list: (params?: { category?: string; type?: string; isActive?: string }) => {
+      const sp = new URLSearchParams()
+      if (params?.category) sp.set('category', params.category)
+      if (params?.type) sp.set('type', params.type)
+      if (params?.isActive) sp.set('isActive', params.isActive)
+      const q = sp.toString()
+      return fetchApi<ContentsResponse>(`/admin/contents${q ? `?${q}` : ''}`)
+    },
+    create: (data: Partial<Content>) =>
+      fetchApi<Content>('/admin/contents', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<Content>) =>
+      fetchApi<Content>(`/admin/contents/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: (id: string) =>
+      fetchApi<{ message: string }>(`/admin/contents/${id}`, { method: 'DELETE' }),
+  },
+  templates: {
+    list: () => fetchApi<TemplatesResponse>('/admin/templates'),
+    create: (data: Partial<MessageTemplate>) =>
+      fetchApi<MessageTemplate>('/admin/templates', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<MessageTemplate>) =>
+      fetchApi<MessageTemplate>(`/admin/templates/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   },
   standardPlans: {
     list: (params?: { category?: string; difficulty?: string; active?: string }) => {

@@ -219,6 +219,32 @@ export async function getInactiveUsers(req: AuthRequest, res: Response) {
 }
 
 /**
+ * GET /api/admin/contents
+ * Listar todos los contenidos (para backoffice, incluye inactivos)
+ */
+export async function getContents(req: AuthRequest, res: Response) {
+  try {
+    const { category, type, isActive } = req.query
+
+    const where: any = {}
+    if (category) where.category = category
+    if (type) where.type = type
+    if (isActive === 'true') where.isActive = true
+    if (isActive === 'false') where.isActive = false
+
+    const contents = await prisma.content.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    })
+
+    return res.json({ contents, total: contents.length })
+  } catch (error: any) {
+    console.error('Error getting contents:', error)
+    return res.status(500).json({ error: 'Error al obtener contenidos' })
+  }
+}
+
+/**
  * POST /api/admin/contents
  * Crear nuevo contenido
  */
@@ -295,6 +321,40 @@ export async function deleteContent(req: AuthRequest, res: Response) {
   } catch (error: any) {
     console.error('Error deleting content:', error)
     return res.status(500).json({ error: 'Error al eliminar contenido' })
+  }
+}
+
+/**
+ * POST /api/admin/templates
+ * Crear nueva plantilla
+ */
+export async function createTemplate(req: AuthRequest, res: Response) {
+  try {
+    const { key, name, content, variables, type } = req.body
+
+    if (!key || !name || !content) {
+      return res.status(400).json({
+        error: 'Campos requeridos: key, name, content',
+      })
+    }
+
+    const template = await prisma.messageTemplate.create({
+      data: {
+        key,
+        name,
+        content,
+        variables: Array.isArray(variables) ? variables : [],
+        type: type || 'general',
+      },
+    })
+
+    return res.status(201).json(template)
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      return res.status(400).json({ error: 'Ya existe una plantilla con esa key' })
+    }
+    console.error('Error creating template:', error)
+    return res.status(500).json({ error: 'Error al crear plantilla' })
   }
 }
 

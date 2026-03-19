@@ -6,10 +6,12 @@ import {
   updateUserBot,
   getAnalytics,
   getInactiveUsers,
+  getContents,
   createContent,
   updateContent,
   deleteContent,
   getTemplates,
+  createTemplate,
   updateTemplate,
   getStandardPlans,
   createStandardPlan,
@@ -40,6 +42,7 @@ router.get('/analytics', getAnalytics)
 /**
  * Content Management
  */
+router.get('/contents', getContents)
 router.post('/contents', createContent)
 router.patch('/contents/:id', updateContent)
 router.delete('/contents/:id', deleteContent)
@@ -48,6 +51,7 @@ router.delete('/contents/:id', deleteContent)
  * Template Management
  */
 router.get('/templates', getTemplates)
+router.post('/templates', createTemplate)
 router.patch('/templates/:id', updateTemplate)
 
 /**
