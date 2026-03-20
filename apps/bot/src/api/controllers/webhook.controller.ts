@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { userService, prisma, checkInService } from '@pulze/database'
 import { aiService, contextService, contextUpdater, promptBuilderService } from '../../services/ai'
 import { adaptRoutineForUser } from '../../services/ai/routine-adapter.service'
+import { getNutritionKnowledgeBase, getTrainingKnowledgeBase } from '../../services/ai/knowledge-base.service'
 import { parseCheckInMessage } from '../../utils/checkin-parser'
 import { builderBotClient } from '../../services/builderbot'
 
@@ -666,24 +667,29 @@ async function handleCheckIn(
 
 /**
  * Manejar consulta de nutrición
+ * Usa la base de conocimiento (Contenidos categoría Nutrición) como referencia.
  */
 async function handleNutritionQuery(
   user: any,
   message: string,
   entities?: Record<string, any>
 ): Promise<string> {
-  // Construir contexto completo
-  const context = await contextService.getUserContext(user.id)
-  const history = await contextService.getConversationHistory(user.id, 5)
+  const [userContext, knowledgeBase, history] = await Promise.all([
+    contextService.getUserContext(user.id),
+    getNutritionKnowledgeBase(),
+    contextService.getConversationHistory(user.id, 5),
+  ])
 
-  // Generar respuesta con GPT
+  const fullContext = knowledgeBase
+    ? `${userContext}\n\n${knowledgeBase}\n\nUsá la base de conocimiento como referencia principal. Adaptá la info al usuario.`
+    : userContext
+
   const response = await aiService.generateCoachResponse(
     message,
-    context,
+    fullContext,
     history
   )
 
-  // Guardar en NutritionLog si es consulta sobre comida
   if (entities?.food) {
     await prisma.nutritionLog.create({
       data: {
@@ -701,20 +707,26 @@ async function handleNutritionQuery(
 
 /**
  * Manejar consulta de entrenamiento
+ * Usa la base de conocimiento (Contenidos Entrenamiento + Planes estándar) como referencia.
  */
 async function handleTrainingQuery(
   user: any,
   message: string,
   entities?: Record<string, any>
 ): Promise<string> {
-  // Construir contexto completo
-  const context = await contextService.getUserContext(user.id)
-  const history = await contextService.getConversationHistory(user.id, 5)
+  const [userContext, knowledgeBase, history] = await Promise.all([
+    contextService.getUserContext(user.id),
+    getTrainingKnowledgeBase(),
+    contextService.getConversationHistory(user.id, 5),
+  ])
 
-  // Generar respuesta con GPT
+  const fullContext = knowledgeBase
+    ? `${userContext}\n\n${knowledgeBase}\n\nUsá la base de conocimiento y los planes como referencia. Adaptá rutinas y ejercicios a las restricciones y nivel del usuario.`
+    : userContext
+
   const response = await aiService.generateCoachResponse(
     message,
-    context,
+    fullContext,
     history
   )
 
