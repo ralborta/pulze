@@ -335,17 +335,21 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     text.toLowerCase().includes('check') ||
     parseCheckInMessage(text) != null
 
+  const lower = text.toLowerCase()
+  const looksLikeNutrition =
+    intent === 'consulta_nutricion' ||
+    /\b(comida|dieta|nutrición|nutricion|calorías|calorias|proteína|proteina|carbohidratos|grasas|comer|alimentación|alimentacion|macros|hidratación|hidratacion)\b/.test(lower)
+  const looksLikeTraining =
+    intent === 'consulta_entreno' ||
+    /\b(rutina|ejercicio|entrenar|gym|musculación|musculacion|cardio|pesas|repeticiones|series|estiramiento)\b/.test(lower)
+
   if (looksLikeCheckIn) {
-    // Check-in diario (o respuesta al recordatorio con formato 4, 3, bien, sí)
     response = await handleCheckIn(user.id, text, entities)
-  } else if (intent === 'consulta_nutricion') {
-    // Consulta sobre nutrición
+  } else if (looksLikeNutrition) {
     response = await handleNutritionQuery(user, text, entities)
-  } else if (intent === 'consulta_entreno') {
-    // Consulta sobre entrenamiento
+  } else if (looksLikeTraining) {
     response = await handleTrainingQuery(user, text, entities)
   } else {
-    // Conversación general
     response = await handleGeneralConversation(user, text, intent)
   }
 

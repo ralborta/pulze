@@ -11,13 +11,15 @@ import {
   BarChart3,
   Settings,
   LogOut,
-  Dumbbell
+  Dumbbell,
+  UtensilsCrossed
 } from 'lucide-react'
 
 const navItems = [
   { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/usuarios', icon: Users, label: 'Usuarios' },
   { href: '/contenidos', icon: FileText, label: 'Contenidos' },
+  { href: '/nutricion', icon: UtensilsCrossed, label: 'Nutrición' },
   { href: '/planes-rutinas', icon: Dumbbell, label: 'Planes rutinas' },
   { href: '/plantillas', icon: MessageSquare, label: 'Plantillas' },
   { href: '/analytics', icon: BarChart3, label: 'Analytics' },
