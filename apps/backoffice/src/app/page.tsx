@@ -20,13 +20,13 @@ export default function BackofficePage() {
   return (
     <>
       {/* Header */}
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-gradient mb-2">Dashboard</h1>
-        <p className="text-gray-400">Vista general de la plataforma PULZE</p>
+      <header className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gradient mb-2">Dashboard</h1>
+        <p className="text-sm sm:text-base text-gray-400">Vista general de la plataforma PULZE</p>
       </header>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
         <StatCard
           title="Usuarios Totales"
           value={String(userStats?.total ?? usersData?.total ?? '-')}
@@ -61,7 +61,7 @@ export default function BackofficePage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Recent Users */}
         <div className="lg:col-span-2 glass rounded-3xl p-6">
           <h2 className="text-xl font-semibold mb-6 text-white">Usuarios Recientes</h2>
@@ -170,7 +170,7 @@ function UserRow({
   streak: number
 }) {
   return (
-    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition">
       <div className="flex items-center gap-4">
         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center">
           <span className="text-white font-bold text-lg">{name[0]}</span>
@@ -181,7 +181,7 @@ function UserRow({
           <p className="text-xs text-gray-500">{phone}</p>
         </div>
       </div>
-      <div className="text-right">
+      <div className="text-left sm:text-right">
         <span className={`inline-block px-3 py-1 text-xs rounded-full font-medium ${
           status === 'Activo' 
             ? 'bg-green-500/20 text-green-400 border border-green-500/30' 

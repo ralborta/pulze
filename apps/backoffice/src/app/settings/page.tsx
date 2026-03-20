@@ -6,15 +6,15 @@ export default function SettingsPage() {
   return (
     <>
       {/* Header */}
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-gradient mb-2">Configuración</h1>
-        <p className="text-gray-400">Ajustes de la plataforma PULZE</p>
+      <header className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gradient mb-2">Configuración</h1>
+        <p className="text-sm sm:text-base text-gray-400">Ajustes de la plataforma PULZE</p>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Settings Menu */}
         <div className="lg:col-span-1">
-          <div className="glass rounded-3xl p-4 space-y-2">
+          <div className="glass rounded-2xl sm:rounded-3xl p-4 space-y-2">
             <SettingMenuItem icon={<User className="w-5 h-5" />} label="Perfil" active />
             <SettingMenuItem icon={<Bell className="w-5 h-5" />} label="Notificaciones" />
             <SettingMenuItem icon={<Database className="w-5 h-5" />} label="Base de Datos" />
@@ -29,7 +29,7 @@ export default function SettingsPage() {
         {/* Settings Content */}
         <div className="lg:col-span-2 space-y-6">
           {/* Profile Settings */}
-          <div className="glass rounded-3xl p-6">
+          <div className="glass rounded-2xl sm:rounded-3xl p-4 sm:p-6">
             <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-3">
               <User className="w-6 h-6 text-cyan-400" />
               Perfil de Administrador
@@ -55,7 +55,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Notification Settings */}
-          <div className="glass rounded-3xl p-6">
+          <div className="glass rounded-2xl sm:rounded-3xl p-4 sm:p-6">
             <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-3">
               <Bell className="w-6 h-6 text-cyan-400" />
               Notificaciones
@@ -85,7 +85,7 @@ export default function SettingsPage() {
           </div>
 
           {/* API Settings */}
-          <div className="glass rounded-3xl p-6">
+          <div className="glass rounded-2xl sm:rounded-3xl p-4 sm:p-6">
             <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-3">
               <Key className="w-6 h-6 text-cyan-400" />
               API Keys
@@ -118,7 +118,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Database Settings */}
-          <div className="glass rounded-3xl p-6">
+          <div className="glass rounded-2xl sm:rounded-3xl p-4 sm:p-6">
             <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-3">
               <Database className="w-6 h-6 text-cyan-400" />
               Base de Datos
@@ -140,7 +140,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Appearance Settings */}
-          <div className="glass rounded-3xl p-6">
+          <div className="glass rounded-2xl sm:rounded-3xl p-4 sm:p-6">
             <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-3">
               <Palette className="w-6 h-6 text-cyan-400" />
               Apariencia

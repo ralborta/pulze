@@ -49,20 +49,20 @@ export default function UsuariosPage() {
   return (
     <>
       {/* Header */}
-      <header className="flex items-center justify-between mb-8">
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gradient mb-2">Usuarios</h1>
-          <p className="text-gray-400">Gestión de usuarios de PULZE</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gradient mb-2">Usuarios</h1>
+          <p className="text-sm sm:text-base text-gray-400">Gestión de usuarios de PULZE</p>
         </div>
-        <button className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 rounded-xl font-semibold transition">
+        <button className="flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 rounded-xl font-semibold transition shrink-0">
           <UserPlus className="w-5 h-5" />
           Nuevo Usuario
         </button>
       </header>
 
       {/* Filters */}
-      <div className="glass rounded-3xl p-6 mb-6">
-        <div className="flex items-center gap-4">
+      <div className="glass rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <div className="flex-1 relative">
             <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
             <input
@@ -76,7 +76,7 @@ export default function UsuariosPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-gray-300 focus:outline-none focus:border-cyan-500/50"
+            className="w-full sm:w-auto px-4 sm:px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-gray-300 focus:outline-none focus:border-cyan-500/50"
           >
             <option value="">Todos</option>
             <option value="active">Activos</option>
@@ -90,7 +90,7 @@ export default function UsuariosPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <QuickStat label="Total" value={String(total)} color="blue" />
         <QuickStat label="Activos" value={String(activeCount)} color="green" />
         <QuickStat label="Inactivos" value={String(inactiveCount)} color="gray" />
@@ -98,30 +98,30 @@ export default function UsuariosPage() {
       </div>
 
       {/* Users Table */}
-      <div className="glass rounded-3xl overflow-hidden">
+      <div className="glass rounded-2xl sm:rounded-3xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-white/5 border-b border-white/10">
               <tr>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-gray-300">
+                <th className="text-left px-4 sm:px-6 py-3 sm:py-4 text-sm font-semibold text-gray-300">
                   Usuario
                 </th>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-gray-300">
+                <th className="text-left px-4 sm:px-6 py-3 sm:py-4 text-sm font-semibold text-gray-300">
                   Contacto
                 </th>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-gray-300">
+                <th className="text-left px-4 sm:px-6 py-3 sm:py-4 text-sm font-semibold text-gray-300">
                   Objetivo
                 </th>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-gray-300">
+                <th className="text-left px-4 sm:px-6 py-3 sm:py-4 text-sm font-semibold text-gray-300">
                   Datos
                 </th>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-gray-300">
+                <th className="text-left px-4 sm:px-6 py-3 sm:py-4 text-sm font-semibold text-gray-300">
                   Racha
                 </th>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-gray-300">
+                <th className="text-left px-4 sm:px-6 py-3 sm:py-4 text-sm font-semibold text-gray-300">
                   Estado
                 </th>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-gray-300">
+                <th className="text-left px-4 sm:px-6 py-3 sm:py-4 text-sm font-semibold text-gray-300">
                   Registro
                 </th>
                 <th className="w-12" />

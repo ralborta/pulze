@@ -26,7 +26,7 @@ const navItems = [
   { href: '/settings', icon: Settings, label: 'Configuración' },
 ]
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
 
   return (
@@ -59,6 +59,7 @@ export function Sidebar() {
               <Link
                 key={href}
                 href={href}
+                onClick={onNavigate}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
                   isActive
                     ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'

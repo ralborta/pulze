@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import { Sidebar } from '@/components/Sidebar'
+import { LayoutShell } from '@/components/LayoutShell'
 import { Providers } from '@/components/Providers'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -18,7 +18,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body className={`${inter.className} bg-pulze-gradient text-white`}>
+      <body className={`${inter.className} bg-pulze-gradient text-white overflow-x-hidden`}>
         <Providers>
         {/* Animated background */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -26,12 +26,7 @@ export default function RootLayout({
           <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl animate-float" style={{ animationDelay: '1.5s' }}></div>
         </div>
         
-        <div className="flex min-h-screen relative">
-          <Sidebar />
-          <main className="flex-1 ml-64 p-8">
-            {children}
-          </main>
-        </div>
+        <LayoutShell>{children}</LayoutShell>
         </Providers>
       </body>
     </html>

@@ -34,22 +34,23 @@ export default function NutricionPage() {
 
   return (
     <>
-      <header className="flex items-center justify-between mb-8">
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gradient mb-2">Nutrición</h1>
-          <p className="text-gray-400">Base de conocimiento nutricional. La IA usa esto en consultas de alimentación.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gradient mb-2">Nutrición</h1>
+          <p className="text-sm sm:text-base text-gray-400">Base de conocimiento nutricional. La IA usa esto en consultas de alimentación.</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 rounded-xl font-semibold transition"
+          className="flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 rounded-xl font-semibold transition shrink-0"
         >
           <Plus className="w-5 h-5" />
-          Nuevo contenido nutrición
+          <span className="hidden sm:inline">Nuevo contenido nutrición</span>
+          <span className="sm:hidden">Nuevo</span>
         </button>
       </header>
 
-      <div className="glass rounded-3xl p-6 mb-6">
-        <div className="flex items-center gap-4">
+      <div className="glass rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <div className="flex-1 relative">
             <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
             <input
@@ -63,7 +64,7 @@ export default function NutricionPage() {
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-gray-300 focus:outline-none focus:border-cyan-500/50"
+            className="w-full sm:w-auto px-4 sm:px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-gray-300 focus:outline-none focus:border-cyan-500/50"
           >
             <option value="">Todos los tipos</option>
             {TYPES.map((t) => (
@@ -75,7 +76,7 @@ export default function NutricionPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <QuickStat label="Total" value={String(contents.length)} color="blue" />
         <QuickStat
           label="Tips"
@@ -94,7 +95,7 @@ export default function NutricionPage() {
         />
       </div>
 
-      <div className="glass rounded-3xl overflow-hidden">
+      <div className="glass rounded-2xl sm:rounded-3xl overflow-hidden">
         {isLoading && (
           <div className="p-12 text-center text-gray-400">Cargando...</div>
         )}
@@ -108,7 +109,7 @@ export default function NutricionPage() {
             No hay contenidos de nutrición. Creá el primero para que la IA pueda usarlos.
           </div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 p-4 sm:p-6">
           {filtered.map((c) => (
             <ContentCard
               key={c.id}
@@ -288,11 +289,11 @@ function ContentFormModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative glass rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white/5 backdrop-blur-xl border-b border-white/10 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-white">
+      <div className="relative glass rounded-2xl sm:rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white/5 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+          <h2 className="text-lg sm:text-xl font-semibold text-white truncate pr-2">
             {content ? 'Editar contenido' : 'Nuevo contenido nutrición'}
           </h2>
           <button
@@ -303,7 +304,7 @@ function ContentFormModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
           <div>
             <label className="block text-sm text-gray-400 mb-1">Título *</label>
             <input
@@ -324,7 +325,7 @@ function ContentFormModal({
               placeholder="Breve descripción"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-400 mb-1">Categoría</label>
               <input
@@ -370,7 +371,7 @@ function ContentFormModal({
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4">
             <button
               type="button"
               onClick={onClose}

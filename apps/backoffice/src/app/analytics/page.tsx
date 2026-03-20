@@ -6,22 +6,22 @@ export default function AnalyticsPage() {
   return (
     <>
       {/* Header */}
-      <header className="flex items-center justify-between mb-8">
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gradient mb-2">Analytics</h1>
-          <p className="text-gray-400">Métricas y análisis de la plataforma</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gradient mb-2">Analytics</h1>
+          <p className="text-sm sm:text-base text-gray-400">Métricas y análisis de la plataforma</p>
         </div>
-        <button className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-gray-300 font-medium transition">
+        <button className="flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-gray-300 font-medium transition shrink-0">
           <Download className="w-5 h-5" />
           Exportar Reporte
         </button>
       </header>
 
       {/* Time Period Selector */}
-      <div className="glass rounded-3xl p-6 mb-6">
-        <div className="flex items-center gap-4">
+      <div className="glass rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <Calendar className="w-5 h-5 text-cyan-400" />
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button className="px-4 py-2 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-lg font-medium transition">
               Últimos 7 días
             </button>

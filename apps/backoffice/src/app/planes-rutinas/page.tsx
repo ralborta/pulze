@@ -38,16 +38,16 @@ export default function PlanesRutinasPage() {
 
   return (
     <>
-      <header className="flex items-center justify-between mb-8">
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gradient mb-2">Planes rutinas</h1>
-          <p className="text-gray-400">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gradient mb-2">Planes rutinas</h1>
+          <p className="text-sm sm:text-base text-gray-400">
             Base para rutinas diarias. La IA adapta estos planes según cada usuario.
           </p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 rounded-xl font-semibold transition"
+          className="flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 rounded-xl font-semibold transition shrink-0"
         >
           <Plus className="w-5 h-5" />
           Nuevo plan
@@ -55,12 +55,12 @@ export default function PlanesRutinasPage() {
       </header>
 
       {/* Filters */}
-      <div className="glass rounded-3xl p-6 mb-6">
-        <div className="flex items-center gap-4">
+      <div className="glass rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-gray-300 focus:outline-none focus:border-cyan-500/50"
+            className="w-full sm:w-auto px-4 sm:px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-gray-300 focus:outline-none focus:border-cyan-500/50"
           >
             <option value="">Todas las categorías</option>
             {CATEGORIES.map((c) => (
@@ -72,7 +72,7 @@ export default function PlanesRutinasPage() {
           <select
             value={difficultyFilter}
             onChange={(e) => setDifficultyFilter(e.target.value)}
-            className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-gray-300 focus:outline-none focus:border-cyan-500/50"
+            className="w-full sm:w-auto px-4 sm:px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-gray-300 focus:outline-none focus:border-cyan-500/50"
           >
             <option value="">Todos los niveles</option>
             {DIFFICULTIES.map((d) => (
@@ -85,7 +85,7 @@ export default function PlanesRutinasPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <QuickStat label="Total" value={String(plans.length)} color="blue" />
         <QuickStat
           label="Principiante"
@@ -105,7 +105,7 @@ export default function PlanesRutinasPage() {
       </div>
 
       {/* Plans Grid */}
-      <div className="glass rounded-3xl overflow-hidden">
+      <div className="glass rounded-2xl sm:rounded-3xl overflow-hidden">
         {isLoading && (
           <div className="p-12 text-center text-gray-400">Cargando planes...</div>
         )}
@@ -119,7 +119,7 @@ export default function PlanesRutinasPage() {
             No hay planes. Creá el primero para que la IA pueda adaptar rutinas.
           </div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 p-4 sm:p-6">
           {plans.map((plan) => (
             <PlanCard
               key={plan.id}
