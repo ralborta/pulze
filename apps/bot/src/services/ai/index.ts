@@ -1,6 +1,1 @@
-export { aiService, AIService } from './ai.service'
-export { contextService, ContextService } from './context.service'
-export { contextUpdater } from './context-updater.service'
-export { promptBuilderService, PromptBuilderService } from './prompt-builder.service'
-export * from './prompts'
-export type { ChatMessage, AIResponse } from './ai.service'
+export { contextUpdater, ContextUpdater } from './context-updater.service'
