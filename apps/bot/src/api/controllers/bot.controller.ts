@@ -26,11 +26,24 @@ export function getBotHealth(_req: Request, res: Response) {
  * GET /api/bot/users/:phone/context
  * Lectura de estado para ramificar flows en BuilderBot (requiere X-API-Key).
  */
+/** Solo dígitos, largo típico WhatsApp (sin + en path). Rechaza placeholders tipo <TELÉFONO> o {{from}}. */
+function isValidPhonePathSegment(s: string): boolean {
+  if (!s || /[<>{}@]/.test(s)) return false
+  return /^\d{8,15}$/.test(s)
+}
+
 export async function getUserContext(req: Request, res: Response) {
   try {
     const phone = normalizePhone(req.params.phone || '')
     if (!phone) {
       return res.status(400).json({ error: 'Teléfono inválido o faltante' })
+    }
+    if (!isValidPhonePathSegment(phone)) {
+      return res.status(400).json({
+        error:
+          'En la URL debe ir el número real, solo dígitos (ej. 5491122334455). No uses <TELÉFONO> ni {{variables}} sin resolver en el path.',
+        received: phone,
+      })
     }
 
     const user = await userService.findByPhone(phone)
