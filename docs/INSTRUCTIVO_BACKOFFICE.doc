@@ -1,0 +1,215 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
+<head>
+<meta charset="utf-8">
+<title>Instructivo Backoffice PULZE</title>
+<style>
+body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; margin: 2cm; }
+h1 { font-size: 18pt; color: #0d9488; border-bottom: 2px solid #0d9488; padding-bottom: 8px; margin-top: 24px; }
+h2 { font-size: 14pt; color: #0f766e; margin-top: 20px; }
+h3 { font-size: 12pt; color: #115e59; margin-top: 16px; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+th, td { border: 1px solid #94a3b8; padding: 8px 12px; text-align: left; }
+th { background-color: #e2e8f0; font-weight: bold; }
+tr:nth-child(even) { background-color: #f8fafc; }
+ul { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+p { margin: 8px 0; }
+.titulo-doc { font-size: 22pt; text-align: center; margin-bottom: 24px; }
+.indice { background-color: #f1f5f9; padding: 16px; margin: 16px 0; }
+.ejemplo { background-color: #fef3c7; padding: 12px; font-family: monospace; margin: 12px 0; border-left: 4px solid #f59e0b; }
+</style>
+</head>
+<body>
+
+<p class="titulo-doc"><strong>INSTRUCTIVO PARA USUARIOS DEL BACKOFFICE PULZE</strong></p>
+
+<p>Este documento explica cómo cargar y gestionar los datos que alimentan la IA del bot de WhatsApp: <strong>Nutrición</strong>, <strong>Contenidos</strong>, <strong>Planes rutinas</strong> y <strong>Plantillas</strong>.</p>
+
+<div class="indice">
+<p><strong>Índice</strong></p>
+<ol>
+<li>Nutrición</li>
+<li>Contenidos</li>
+<li>Planes rutinas</li>
+<li>Plantillas</li>
+</ol>
+</div>
+
+<h1>1. Nutrición</h1>
+<p><strong>Ruta:</strong> Menú lateral → Nutrición</p>
+<p>La sección Nutrición guarda la base de conocimiento que la IA usa cuando el usuario pregunta sobre alimentación, dieta, macros, proteínas, hidratación, etc.</p>
+
+<h2>Cómo crear un contenido de nutrición</h2>
+<ol>
+<li>Clic en "Nuevo contenido nutrición".</li>
+<li>Completar los campos:</li>
+</ol>
+
+<table>
+<tr><th>Campo</th><th>Obligatorio</th><th>Descripción</th></tr>
+<tr><td>Título</td><td>Sí</td><td>Nombre corto del contenido. Ej: "Guía de macros por objetivo"</td></tr>
+<tr><td>Descripción</td><td>Sí</td><td>Resumen breve para identificar el contenido</td></tr>
+<tr><td>Categoría</td><td>Fija</td><td>Siempre "Nutrición" (no se puede cambiar)</td></tr>
+<tr><td>Tipo</td><td>Sí</td><td>tip, guia o articulo</td></tr>
+<tr><td>Tags</td><td>No</td><td>Palabras clave separadas por coma. Ej: macros, proteína, hidratación</td></tr>
+<tr><td>Contenido</td><td>Sí</td><td>Texto completo que la IA usará como referencia</td></tr>
+</table>
+
+<h3>Tipos de contenido</h3>
+<ul>
+<li><strong>tip:</strong> consejos breves (ej: "Tomar agua antes de entrenar")</li>
+<li><strong>guia:</strong> guías más largas (ej: "Cómo calcular tus macros")</li>
+<li><strong>articulo:</strong> artículos o explicaciones detalladas</li>
+</ul>
+
+<h3>Recomendaciones</h3>
+<ul>
+<li>Escribir el contenido en lenguaje claro y directo.</li>
+<li>Incluir recomendaciones concretas (porcentajes, cantidades, ejemplos).</li>
+<li>Usar tags relevantes para que la IA pueda relacionar mejor el contenido con las preguntas.</li>
+</ul>
+
+<h1>2. Contenidos</h1>
+<p><strong>Ruta:</strong> Menú lateral → Contenidos</p>
+<p>Los Contenidos son la base de conocimiento general de la IA. Pueden ser de varias categorías: Entrenamiento, Nutrición, Mentalidad, Bienestar.</p>
+<p><em>Nota: Los contenidos de Nutrición también pueden crearse desde la sección Nutrición. La diferencia es que en Contenidos podés elegir cualquier categoría.</em></p>
+
+<h2>Cómo crear un contenido</h2>
+<ol>
+<li>Clic en "Nuevo Contenido".</li>
+<li>Completar los campos:</li>
+</ol>
+
+<table>
+<tr><th>Campo</th><th>Obligatorio</th><th>Descripción</th></tr>
+<tr><td>Título</td><td>Sí</td><td>Nombre del contenido</td></tr>
+<tr><td>Descripción</td><td>Sí</td><td>Breve descripción</td></tr>
+<tr><td>Categoría</td><td>Sí</td><td>Entrenamiento, Nutrición, Mentalidad o Bienestar</td></tr>
+<tr><td>Tipo</td><td>Sí</td><td>tip, guia, rutina o articulo</td></tr>
+<tr><td>Dificultad</td><td>No</td><td>Principiante, Intermedio o Avanzado</td></tr>
+<tr><td>Duración</td><td>No</td><td>Ej: "5 min", "15 min"</td></tr>
+<tr><td>Tags</td><td>No</td><td>Palabras clave separadas por coma</td></tr>
+<tr><td>Contenido</td><td>Sí</td><td>Texto completo que la IA usará</td></tr>
+</table>
+
+<h3>Categorías disponibles</h3>
+<ul>
+<li><strong>Entrenamiento:</strong> rutinas, ejercicios, tips de entrenamiento</li>
+<li><strong>Nutrición:</strong> alimentación, macros, hidratación</li>
+<li><strong>Mentalidad:</strong> motivación, hábitos, mindset</li>
+<li><strong>Bienestar:</strong> sueño, descanso, recuperación</li>
+</ul>
+
+<h3>Filtros</h3>
+<p>Podés filtrar por categoría y tipo para encontrar contenidos rápidamente.</p>
+
+<h1>3. Planes rutinas</h1>
+<p><strong>Ruta:</strong> Menú lateral → Planes rutinas</p>
+<p>Los Planes rutinas son plantillas de entrenamiento que la IA adapta según el nivel, restricciones y equipo disponible del usuario. Se usan cuando el usuario dice que va a entrenar en el check-in.</p>
+
+<h2>Cómo crear un plan</h2>
+<ol>
+<li>Clic en "Nuevo plan".</li>
+<li>Completar los campos:</li>
+</ol>
+
+<table>
+<tr><th>Campo</th><th>Obligatorio</th><th>Descripción</th></tr>
+<tr><td>Título</td><td>Sí</td><td>Nombre del plan. Ej: "Rutina full body 15 min"</td></tr>
+<tr><td>Descripción</td><td>No</td><td>Para uso interno (admin)</td></tr>
+<tr><td>Categoría</td><td>Sí</td><td>Full body, Cardio, Piernas, Superior, Core, Estiramiento u Otro</td></tr>
+<tr><td>Nivel</td><td>Sí</td><td>Principiante, Intermedio o Avanzado</td></tr>
+<tr><td>Duración</td><td>No</td><td>Ej: "15 min", "30 min"</td></tr>
+<tr><td>Equipo</td><td>No</td><td>Seleccionar los que apliquen (casa, sin equipo, gimnasio, mancuernas, bandas, peso corporal, otro)</td></tr>
+<tr><td>Tags</td><td>No</td><td>Palabras clave separadas por coma</td></tr>
+<tr><td>Contenido</td><td>Sí</td><td>Descripción detallada del plan: ejercicios, series, repeticiones, orden, etc.</td></tr>
+</table>
+
+<h3>Equipo disponible</h3>
+<ul>
+<li>casa</li>
+<li>sin equipo</li>
+<li>gimnasio</li>
+<li>mancuernas</li>
+<li>bandas</li>
+<li>peso corporal</li>
+<li>otro</li>
+</ul>
+
+<h3>Recomendaciones para el contenido del plan</h3>
+<ul>
+<li>Indicar ejercicios en orden.</li>
+<li>Incluir series y repeticiones (o tiempo por ejercicio).</li>
+<li>Mencionar descansos entre series.</li>
+<li>Aclarar si hay variantes según nivel.</li>
+<li>La IA adaptará el plan según el usuario (nivel, lesiones, equipo disponible).</li>
+</ul>
+
+<h1>4. Plantillas</h1>
+<p><strong>Ruta:</strong> Menú lateral → Plantillas</p>
+<p>Las Plantillas son mensajes predefinidos que el bot envía en momentos concretos (bienvenida, check-in, resumen semanal, etc.). Podés usar variables que se reemplazan con datos del usuario.</p>
+
+<h2>Cómo crear una plantilla</h2>
+<ol>
+<li>Clic en "Nueva Plantilla".</li>
+<li>Completar los campos:</li>
+</ol>
+
+<table>
+<tr><th>Campo</th><th>Obligatorio</th><th>Descripción</th></tr>
+<tr><td>Key</td><td>Sí</td><td>Identificador único (solo al crear). Ej: welcome, checkin_morning</td></tr>
+<tr><td>Nombre</td><td>Sí</td><td>Nombre descriptivo. Ej: "Bienvenida Inicial"</td></tr>
+<tr><td>Tipo</td><td>Sí</td><td>onboarding, checkin, resumen, reactivacion, felicitacion o general</td></tr>
+<tr><td>Variables</td><td>No</td><td>Lista de variables separadas por coma. Ej: nombre, racha, logros</td></tr>
+<tr><td>Contenido</td><td>Sí</td><td>Texto del mensaje. Usar {{variable}} para insertar valores</td></tr>
+<tr><td>Activa</td><td>Solo al editar</td><td>Marcar si la plantilla está en uso</td></tr>
+</table>
+
+<h3>Variables disponibles</h3>
+<p>En el contenido del mensaje podés usar variables con la sintaxis {{nombre}}. Ejemplos:</p>
+
+<table>
+<tr><th>Variable</th><th>Uso</th></tr>
+<tr><td>{{nombre}}</td><td>Nombre del usuario</td></tr>
+<tr><td>{{racha}}</td><td>Días de racha actual</td></tr>
+<tr><td>{{logros}}</td><td>Logros o hitos</td></tr>
+<tr><td>{{fecha}}</td><td>Fecha actual</td></tr>
+<tr><td>Otras</td><td>Definir en el campo "Variables" según el flujo</td></tr>
+</table>
+
+<h3>Tipos de plantilla</h3>
+<ul>
+<li><strong>onboarding:</strong> mensajes de bienvenida o onboarding</li>
+<li><strong>checkin:</strong> mensajes del check-in diario</li>
+<li><strong>resumen:</strong> resúmenes semanales o periódicos</li>
+<li><strong>reactivacion:</strong> mensajes para usuarios inactivos</li>
+<li><strong>felicitacion:</strong> celebraciones (rachas, logros)</li>
+<li><strong>general:</strong> otros mensajes automáticos</li>
+</ul>
+
+<h3>Ejemplo de contenido</h3>
+<div class="ejemplo">
+¡Hola {{nombre}}! 👋<br><br>
+Bienvenido/a a PULZE. Tu racha actual es de {{racha}} días. ¡Seguí así!
+</div>
+
+<h1>Resumen: qué usa la IA</h1>
+
+<table>
+<tr><th>Sección</th><th>Cuándo lo usa la IA</th></tr>
+<tr><td>Nutrición</td><td>Cuando el usuario pregunta sobre comida, dieta, macros, proteínas, hidratación, etc.</td></tr>
+<tr><td>Contenidos</td><td>Según la categoría: Entrenamiento (rutinas, ejercicios), Nutrición (alimentación), Mentalidad, Bienestar</td></tr>
+<tr><td>Planes rutinas</td><td>Cuando el usuario indica que va a entrenar en el check-in; la IA adapta un plan según su nivel y equipo</td></tr>
+<tr><td>Plantillas</td><td>En momentos específicos del flujo (bienvenida, check-in, resumen, etc.) según la key y el tipo</td></tr>
+</table>
+
+<h1>Acciones comunes</h1>
+<ul>
+<li><strong>Editar:</strong> pasar el mouse sobre una tarjeta y clic en el ícono de lápiz.</li>
+<li><strong>Eliminar:</strong> pasar el mouse sobre una tarjeta y clic en el ícono de papelera. Se pedirá confirmación.</li>
+<li><strong>Buscar:</strong> usar el campo de búsqueda en cada sección.</li>
+<li><strong>Filtrar:</strong> usar los selectores de categoría, tipo o nivel según la sección.</li>
+</ul>
+
+</body>
+</html>

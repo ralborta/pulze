@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>PULZE — Flujo de mensajes y nodos en BuilderBot</title>
+  <style>
+    body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.35; max-width: 21cm; margin: 2cm; color: #111; }
+    h1 { font-size: 18pt; border-bottom: 1pt solid #333; padding-bottom: 6pt; }
+    h2 { font-size: 14pt; margin-top: 18pt; }
+    h3 { font-size: 12pt; margin-top: 12pt; }
+    table { border-collapse: collapse; width: 100%; margin: 10pt 0; font-size: 10pt; }
+    th, td { border: 1pt solid #666; padding: 6pt; text-align: left; vertical-align: top; }
+    th { background: #f0f0f0; }
+    code, .mono { font-family: Consolas, monospace; font-size: 9.5pt; }
+    ul { margin-top: 6pt; }
+    .note { background: #f8f8f8; padding: 8pt; border-left: 3pt solid #444; margin: 10pt 0; }
+  </style>
+</head>
+<body>
+
+<h1>PULZE — Cómo llegan los mensajes y cómo armar los nodos en BuilderBot</h1>
+<p>Documento orientado a diseñar flows en BuilderBot Cloud: disparadores, peticiones HTTP a PULZE, variables y envíos salientes.</p>
+
+<h2>1. Vista general (canal WhatsApp)</h2>
+<ol>
+  <li>El usuario escribe en <strong>WhatsApp</strong>.</li>
+  <li><strong>BuilderBot Cloud</strong> recibe el mensaje en el número conectado.</li>
+  <li>Un <strong>flow</strong> en BuilderBot se dispara (por ejemplo: “cualquier mensaje entrante” o una palabra clave).</li>
+  <li>El primer nodo útil suele ser una <strong>Petición HTTP</strong> hacia el backend PULZE.</li>
+  <li>PULZE procesa (usuario, onboarding, menú, check-in, IA, etc.) y <strong>devuelve JSON</strong>.</li>
+  <li>BuilderBot usa ese JSON para <strong>mostrar el texto al usuario</strong> y/o <strong>saltar a otro flow</strong> según variables (<code>flow</code>, <code>registered</code>, etc.).</li>
+</ol>
+
+<h2>2. Mensaje entrante → PULZE (principal)</h2>
+<h3>2.1 Endpoint</h3>
+<p>Usar <strong>POST</strong> a una de estas URLs (misma lógica):</p>
+<ul>
+  <li><span class="mono">https://&lt;TU_HOST&gt;/api/bot/inbound</span></li>
+  <li><span class="mono">https://&lt;TU_HOST&gt;/api/webhooks/builderbot</span> (webhook clásico)</li>
+</ul>
+
+<h3>2.2 Qué envía BuilderBot en el body</h3>
+<p>Debe incluir al menos el <strong>teléfono del usuario</strong> y el <strong>texto</strong>. BuilderBot Cloud suele envolver el payload; PULZE acepta el formato estándar con <code>eventName</code> y <code>data</code>:</p>
+<ul>
+  <li><code>data.from</code> — teléfono (sin + o con +, según cómo lo mapees).</li>
+  <li><code>data.body</code> — texto que escribió el usuario.</li>
+</ul>
+<p>Si en el panel de prueba aparecen placeholders (<code>@from</code>, <code>{{body}}</code>), no son contenido real: en producción deben resolverse a número y texto.</p>
+
+<h3>2.3 Seguridad (opcional pero recomendable en producción)</h3>
+<p>Si en PULZE está configurado <code>BUILDERBOT_WEBHOOK_SECRET</code>, la petición debe incluir el header:</p>
+<p class="mono">x-webhook-secret: &lt;mismo valor que en el servidor&gt;</p>
+
+<h3>2.4 Respuesta JSON típica (para el usuario y para ramificar)</h3>
+<table>
+  <tr><th>Campo</th><th>Uso en BuilderBot</th></tr>
+  <tr><td><code>message</code></td><td>Texto a enviar al usuario. A veces puede ser un espacio “invisible” si la respuesta la genera el asistente de BuilderBot según instructions enviadas por PULZE.</td></tr>
+  <tr><td><code>flow</code></td><td>Pista de routing: por ejemplo <code>onboarding</code>, <code>menu</code>, <code>operator</code>.</td></tr>
+  <tr><td><code>registered</code></td><td>Si el usuario ya está dado de alta en flujo lógico (boolean).</td></tr>
+  <tr><td><code>nombre</code></td><td>Nombre para plantillas (puede ir vacío).</td></tr>
+</table>
+
+<h3>2.5 Nodo en BuilderBot (recomendado)</h3>
+<ul>
+  <li><strong>Método:</strong> POST.</li>
+  <li><strong>URL:</strong> la base de tu API + <span class="mono">/api/bot/inbound</span>.</li>
+  <li><strong>Body:</strong> JSON con <code>from</code> y mensaje (según variables que exponga tu trigger: mapear <code>from</code> y cuerpo del mensaje).</li>
+  <li><strong>Siguiente paso:</strong> nodo que envía al chat el valor <code>message</code> de la respuesta, y opcionalmente un <strong>Switch / IF</strong> sobre <code>flow</code> o <code>registered</code> para ir a otro módulo.</li>
+</ul>
+
+<h2>3. Consulta de contexto sin “procesar” un mensaje (opcional)</h2>
+<p>Si querés ramificar <strong>antes</strong> o <strong>sin</strong> mandar el texto del usuario a la lógica principal:</p>
+<ul>
+  <li><strong>GET</strong> <span class="mono">/api/bot/users/&lt;teléfono&gt;/context</span></li>
+  <li>Header: <strong>X-API-Key</strong> con el mismo valor que <code>N8N_API_KEY</code> o <code>API_KEY</code> en el servidor PULZE.</li>
+</ul>
+<p>Respuesta incluye: si existe el usuario, si completó onboarding, nombre, <code>flow</code> sugerido (<code>onboarding</code> / <code>operator</code> / <code>menu</code>), racha, hora de recordatorio, etc.</p>
+<div class="note">Uso típico: un solo POST para la conversación; el GET sirve para pantallas de “estado” o flows que primero listan datos y luego deciden.</div>
+
+<h2>4. Envío saliente desde tu plataforma (opcional)</h2>
+<p>Si un flow de BuilderBot debe <strong>disparar un mensaje</strong> vía API de PULZE (por ejemplo botones internos):</p>
+<ul>
+  <li><strong>POST</strong> <span class="mono">/api/bot/messages/outbound</span></li>
+  <li>Header: <strong>X-API-Key</strong></li>
+  <li>Body JSON: <code>message</code> + <code>userId</code> <em>o</em> <code>phone</code>; opcional <code>messageType</code>.</li>
+</ul>
+<p>Los recordatorios automáticos por cron suelen ir por <strong>n8n</strong> → endpoints <span class="mono">/api/n8n/...</span> → PULZE envía por BuilderBot; no es obligatorio duplicar eso en el flow del usuario.</p>
+
+<h2>5. Recordatorios y n8n (no es el chat en vivo)</h2>
+<ol>
+  <li><strong>n8n</strong> ejecuta un schedule (cron).</li>
+  <li>Llama a PULZE: listas de usuarios (pendientes de check-in, inactivos, etc.).</li>
+  <li>PULZE genera texto (IA) si corresponde.</li>
+  <li>PULZE envía el WhatsApp vía API de BuilderBot (<span class="mono">proactive-messages</span>).</li>
+</ol>
+<p>El usuario <strong>no escribe</strong> en ese momento: es mensaje <strong>proactivo</strong>. Cuando responde, vuelve el flujo de la sección 2.</p>
+
+<h2>6. Resumen para armar nodos en BuilderBot</h2>
+<table>
+  <tr><th>Objetivo</th><th>Nodo</th><th>HTTP</th></tr>
+  <tr><td>Responder cada mensaje del usuario</td><td>Petición HTTP → enviar respuesta al chat</td><td>POST <code>/api/bot/inbound</code></td></tr>
+  <tr><td>Saber estado del usuario (opcional)</td><td>Petición HTTP</td><td>GET <code>/api/bot/users/.../context</code> + API Key</td></tr>
+  <tr><td>Enviar mensaje desde un botón interno (opcional)</td><td>Petición HTTP</td><td>POST <code>/api/bot/messages/outbound</code> + API Key</td></tr>
+  <tr><td>Recordatorios automáticos</td><td>En n8n, no en el flow del usuario</td><td><code>/api/n8n/...</code></td></tr>
+</table>
+
+<h2>7. Salud del servicio</h2>
+<p><strong>GET</strong> <span class="mono">/api/bot/health</span> — sin autenticación; útil para comprobar que la API está arriba.</p>
+
+<p style="margin-top:24pt; font-size:9pt; color:#555;">PULZE — Backend y contratos HTTP para BuilderBot. Reemplazar &lt;TU_HOST&gt; por la URL de despliegue (Easypanel, Railway, etc.).</p>
+
+</body>
+</html>

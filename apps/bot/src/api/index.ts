@@ -9,6 +9,7 @@ import preferencesRoutes from './routes/preferences.routes'
 import adminRoutes from './routes/admin.routes'
 import webhookRoutes from './routes/webhook.routes'
 import n8nRoutes from './routes/n8n.routes'
+import botRoutes from './routes/bot.routes'
 
 export const apiRouter = Router()
 
@@ -33,6 +34,7 @@ apiRouter.use('/contents', contentRoutes)
 apiRouter.use('/preferences', preferencesRoutes)
 apiRouter.use('/admin', adminRoutes)
 apiRouter.use('/webhooks', webhookRoutes)
+apiRouter.use('/bot', botRoutes)
 apiRouter.use('/n8n', n8nRoutes)
 
 /**

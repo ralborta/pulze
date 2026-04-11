@@ -30,6 +30,7 @@ async function main() {
   app.listen(port, '0.0.0.0', () => {
     console.log(`🚀 PULZE API running on port ${port}`)
     console.log(`📡 Webhook: http://localhost:${port}/api/webhooks/builderbot`)
+    console.log(`🤖 Bot API: http://localhost:${port}/api/bot/inbound (alias del webhook)`)
     console.log(`❤️  Health: http://localhost:${port}/health`)
   })
 }
