@@ -1,9 +1,7 @@
 import * as cron from 'node-cron'
-import { prisma, userService } from '@pulze/database'
-import { patternAnalyzer } from '../ai/pattern-analyzer.service'
-import { promptBuilderService } from '../ai/prompt-builder.service'
+import { prisma } from '@pulze/database'
 import { builderBotClient } from '../builderbot'
-import { aiService } from '../ai/ai.service'
+import { buildCheckinReminderCopy, buildReactivationCopy } from '../messages/proactive-copy.service'
 
 /**
  * ProactiveScheduler - Sistema de mensajes proactivos inteligentes
@@ -212,16 +210,10 @@ export class ProactiveScheduler {
    */
   private async sendCheckInReminder(user: any) {
     try {
-      const message = `Hola ${user.name} 👋
-
-Es hora de tu check-in diario. ¿Cómo amaneciste hoy?
-
-Responde con 3 números rápidos:
-1️⃣ Sueño (1-5)
-2️⃣ Energía (1-5)  
-3️⃣ Ánimo (una palabra)
-
-Ejemplo: 4, 3, bien`
+      const message = buildCheckinReminderCopy({
+        name: user.name,
+        currentStreak: user.currentStreak,
+      })
 
       // Enviar vía BuilderBot
       await builderBotClient.sendMessage({
@@ -251,19 +243,11 @@ Ejemplo: 4, 3, bien`
    */
   private async sendReactivationMessage(user: any, daysSinceLastCheckIn: number) {
     try {
-      // Generar mensaje personalizado con GPT-4
-      const { system, user: userPrompt } = promptBuilderService.buildReactivationPrompt(
-        user,
-        daysSinceLastCheckIn
-      )
-
-      const result = await aiService.generateCoachResponse(
-        userPrompt,
-        system,
-        []
-      )
-
-      const message = result.content
+      const message = buildReactivationCopy({
+        name: user.name,
+        daysSinceLastCheckIn,
+        currentStreak: user.currentStreak,
+      })
 
       // Enviar vía BuilderBot
       await builderBotClient.sendMessage({

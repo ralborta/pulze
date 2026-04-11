@@ -1,5 +1,4 @@
 import { prisma, userService } from '@pulze/database'
-import { aiService } from './ai.service'
 
 export interface AdaptRoutineInput {
   userId: string
@@ -19,7 +18,8 @@ export interface AdaptRoutineResult {
 }
 
 /**
- * Adapta un plan estándar al usuario según su contexto y check-in.
+ * Devuelve un plan estándar de la DB con contexto del usuario en texto (sin OpenAI).
+ * La “adaptación fina” puede hacerse en BuilderBot / otro canal.
  */
 export async function adaptRoutineForUser(input: AdaptRoutineInput): Promise<AdaptRoutineResult | null> {
   const { userId, planId, checkInData } = input
@@ -53,34 +53,16 @@ export async function adaptRoutineForUser(input: AdaptRoutineInput): Promise<Ada
 
   if (!plan) return null
 
-  const contextParts: string[] = []
-  contextParts.push(`Usuario: ${user.name}`)
-  contextParts.push(`Objetivo: ${user.goal}`)
-  if (user.restrictions) contextParts.push(`Restricciones: ${user.restrictions}`)
-  if (user.bodyData) contextParts.push(`Peso/altura: ${user.bodyData}`)
-  if ((user as any).activityLevel) contextParts.push(`Nivel actividad: ${(user as any).activityLevel}`)
-  if (checkInData) {
-    if (checkInData.sleep != null) contextParts.push(`Sueño hoy: ${checkInData.sleep}/5`)
-    if (checkInData.energy != null) contextParts.push(`Energía hoy: ${checkInData.energy}/5`)
-    if (checkInData.mood) contextParts.push(`Ánimo: ${checkInData.mood}`)
-    if (checkInData.willTrain !== undefined) contextParts.push(`¿Entrena hoy?: ${checkInData.willTrain ? 'Sí' : 'No'}`)
-  }
-
-  const prompt = `Adaptá esta rutina estándar al usuario. Respetá sus restricciones y ajustá intensidad/ejercicios si hace falta.
-
-**Plan base:** ${plan.title}
-**Contenido:**
-${plan.content}
-
-**Contexto del usuario:**
-${contextParts.join('\n')}
-
-Generá la rutina adaptada en texto, lista para enviar por WhatsApp. Máximo 300 palabras. Sin explicaciones previas, directo a la rutina.`
-
-  const result = await aiService.generateCoachResponse(prompt, undefined, [])
+  const lines: string[] = []
+  lines.push(`📋 ${plan.title} (${plan.category} · ${plan.difficulty})`)
+  lines.push('')
+  if (user.restrictions) lines.push(`⚠️ Recordá tus restricciones: ${user.restrictions}`)
+  if (checkInData?.willTrain === false) lines.push(`Hoy indicaste que no entrenás; ajustá la rutina a tu día.`)
+  lines.push('')
+  lines.push(plan.content)
 
   return {
-    content: result.content,
+    content: lines.filter(Boolean).join('\n'),
     planId: plan.id,
     planTitle: plan.title,
   }

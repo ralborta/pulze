@@ -1,8 +1,12 @@
 import { Request, Response } from 'express'
 import { prisma, userService } from '@pulze/database'
-import { aiService, contextService } from '../../services/ai'
-import { promptBuilderService } from '../../services/ai/prompt-builder.service'
 import { builderBotClient } from '../../services/builderbot'
+import {
+  buildCheckinReminderCopy,
+  buildReactivationCopy,
+  buildCelebrationCopy,
+  buildWeeklyReportCopy,
+} from '../../services/messages/proactive-copy.service'
 
 /**
  * GET /api/n8n/users/pending-checkin
@@ -170,6 +174,7 @@ export async function getMilestones(req: Request, res: Response) {
 /**
  * POST /api/n8n/openai/generate-reminder
  * Body: { userId }
+ * Texto fijo con datos del usuario (sin OpenAI). La redacción “bonita” puede ir en BuilderBot.
  */
 export async function generateReminder(req: Request, res: Response) {
   try {
@@ -179,14 +184,14 @@ export async function generateReminder(req: Request, res: Response) {
     const user = await userService.findById(userId)
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' })
 
-    const context = await contextService.getUserContext(userId)
-    const prompt = `Genera un mensaje breve de recordatorio de check-in para ${user.name}. Racha actual: ${user.currentStreak} días. Tono amigable, 2-3 líneas. Pide que responda con sueño (1-5), energía (1-5) y ánimo.`
-    const result = await aiService.generateCoachResponse(prompt, context, [])
-
-    return res.json({ content: result.content })
+    const content = buildCheckinReminderCopy({
+      name: user.name,
+      currentStreak: user.currentStreak,
+    })
+    return res.json({ content })
   } catch (error: any) {
     console.error('Error generateReminder:', error)
-    return res.status(500).json({ error: 'Error al generar recordatorio' })
+    return res.status(500).json({ error: 'Error al armar recordatorio' })
   }
 }
 
@@ -206,39 +211,38 @@ export async function generateReactivation(req: Request, res: Response) {
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' })
 
     const days = typeof daysSinceLastCheckIn === 'number' ? daysSinceLastCheckIn : 2
-    const { system, user: userPrompt } = promptBuilderService.buildReactivationPrompt(
-      user as any,
-      days
-    )
-    const result = await aiService.generateCoachResponse(userPrompt, system, [])
-
-    return res.json({ content: result.content })
+    const content = buildReactivationCopy({
+      name: user.name,
+      daysSinceLastCheckIn: days,
+      currentStreak: user.currentStreak,
+    })
+    return res.json({ content })
   } catch (error: any) {
     console.error('Error generateReactivation:', error)
-    return res.status(500).json({ error: 'Error al generar reactivación' })
+    return res.status(500).json({ error: 'Error al armar reactivación' })
   }
 }
 
 /**
  * POST /api/n8n/openai/generate-celebration
- * Body: { userId, milestone } (milestone opcional, ej. streak_7)
+ * Body: { userId, milestone } (milestone opcional; la racha sale del usuario en DB)
  */
 export async function generateCelebration(req: Request, res: Response) {
   try {
-    const { userId, milestone } = req.body as { userId?: string; milestone?: string }
+    const { userId } = req.body as { userId?: string; milestone?: string }
     if (!userId) return res.status(400).json({ error: 'userId requerido' })
 
     const user = await userService.findById(userId)
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' })
 
-    const days = user.currentStreak
-    const prompt = `${user.name} alcanzó ${days} días de racha. Genera una felicitación breve (2-3 líneas), específica y genuina.`
-    const result = await aiService.generateCoachResponse(prompt, undefined, [])
-
-    return res.json({ content: result.content })
+    const content = buildCelebrationCopy({
+      name: user.name,
+      currentStreak: user.currentStreak,
+    })
+    return res.json({ content })
   } catch (error: any) {
     console.error('Error generateCelebration:', error)
-    return res.status(500).json({ error: 'Error al generar celebración' })
+    return res.status(500).json({ error: 'Error al armar celebración' })
   }
 }
 
@@ -254,17 +258,16 @@ export async function generateWeeklyReport(req: Request, res: Response) {
     const user = await userService.findById(userId)
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' })
 
-    const checkIns = user.checkIns || []
-    const { system, user: userPrompt } = promptBuilderService.buildWeeklySummaryPrompt(
-      user as any,
-      checkIns
-    )
-    const result = await aiService.generateCoachResponse(userPrompt, system, [])
-
-    return res.json({ content: result.content })
+    const checkIns = (user.checkIns || []).map((c) => ({
+      sleep: c.sleep,
+      energy: c.energy,
+      timestamp: c.timestamp,
+    }))
+    const content = buildWeeklyReportCopy({ name: user.name, checkIns })
+    return res.json({ content })
   } catch (error: any) {
     console.error('Error generateWeeklyReport:', error)
-    return res.status(500).json({ error: 'Error al generar resumen semanal' })
+    return res.status(500).json({ error: 'Error al armar resumen semanal' })
   }
 }
 

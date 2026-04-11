@@ -25,6 +25,7 @@ router.get('/users/milestones', getMilestones)
 
 router.get('/standard-plans', getStandardPlans)
 
+// Rutas históricas /openai/*: el texto se arma con plantillas en servidor (sin OpenAI).
 router.post('/openai/generate-reminder', generateReminder)
 router.post('/openai/generate-reactivation', generateReactivation)
 router.post('/openai/generate-celebration', generateCelebration)
