@@ -8,7 +8,8 @@ Create a `.env` file in the root directory with the following variables:
 # Database (PostgreSQL from Railway)
 DATABASE_URL="postgresql://user:password@host:port/database"
 
-# OpenAI: ya no es necesario para el bot (copy e IA en BuilderBot). Podés omitirla.
+# OpenAI (opcional para el canal WhatsApp vía webhook; sí la vas a usar para otros procesos en el backend)
+OPENAI_API_KEY="sk-..."
 
 # BuilderBot.app (WhatsApp Integration)
 BUILDERBOT_API_KEY="bb_live_..."
