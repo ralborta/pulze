@@ -1,6 +1,5 @@
 import { prisma, UserWithRelations, CheckIn, Conversation } from '@pulze/database'
 import { patternAnalyzer } from './pattern-analyzer.service'
-import { aiService } from './ai.service'
 
 /**
  * ContextUpdater - Actualiza contexto del usuario post-interacción
@@ -97,17 +96,12 @@ export class ContextUpdater {
         })
       }
 
-      const previousSummary = context.aiSummary || null
-      const newSummary = await aiService.generateConversationSummary(
-        previousSummary,
-        userMessage,
-        assistantMessage
-      )
-
+      // Sin OpenAI: el copy lo genera BuilderBot. Opcional: podés guardar último turno en texto plano.
+      const snippet = `${(context.aiSummary || '').slice(-3500)}\nU: ${userMessage.slice(0, 500)}`
       await prisma.userContext.update({
         where: { userId },
         data: {
-          aiSummary: newSummary,
+          aiSummary: snippet.slice(-4000),
           lastAISummaryUpdate: new Date(),
         },
       })
@@ -265,40 +259,21 @@ export class ContextUpdater {
   }
 
   /**
-   * Generar resumen AI del usuario
+   * Resumen no generativo (datos de DB / patrones). La redacción la hace BuilderBot.
    */
   private async generateAISummary(user: UserWithRelations): Promise<string> {
     try {
       const patterns = await patternAnalyzer.analyzeUserPatterns(user)
       const insights = patternAnalyzer.generateInsights(patterns)
-
-      const summaryPrompt = `Resumen ejecutivo del usuario para coaching:
-
-Usuario: ${user.name}
-Objetivo: ${user.goal}
-Racha: ${user.currentStreak}/${user.longestStreak} días
-
-Patrones:
-- Horario preferido: ${patterns.bestCheckInTime || 'no determinado'}
-- Promedio sueño: ${patterns.averageSleep}/5
-- Promedio energía: ${patterns.averageEnergy}/5
-- Frecuencia entrenamiento: ${patterns.trainingFrequency}%
-- Tendencia: ${patterns.streakTrend}
-- Riesgo abandono: ${patterns.riskOfChurn}
-
-${insights}
-
-Resume en 150 palabras: perfil, fortalezas, áreas de mejora, recomendaciones para futuras interacciones.`
-
-      const result = await aiService.generateCoachResponse(
-        summaryPrompt,
-        undefined,
-        []
-      )
-
-      return result.content
+      return [
+        `${user.name} | objetivo: ${user.goal} | racha: ${user.currentStreak}/${user.longestStreak}d`,
+        `sueño ~${patterns.averageSleep}/5 energía ~${patterns.averageEnergy}/5`,
+        insights || '',
+      ]
+        .filter(Boolean)
+        .join('\n')
     } catch (error) {
-      console.error('Error generating AI summary:', error)
+      console.error('Error generating summary snapshot:', error)
       return `${user.name} - Objetivo: ${user.goal} - Racha: ${user.currentStreak} días`
     }
   }

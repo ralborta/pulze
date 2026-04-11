@@ -1,10 +1,12 @@
 import { Request, Response } from 'express'
 import { userService, prisma, checkInService } from '@pulze/database'
-import { aiService, contextService, contextUpdater, promptBuilderService } from '../../services/ai'
+import { contextUpdater } from '../../services/ai'
 import { adaptRoutineForUser } from '../../services/ai/routine-adapter.service'
-import { getNutritionKnowledgeBase, getTrainingKnowledgeBase } from '../../services/ai/knowledge-base.service'
 import { parseCheckInMessage } from '../../utils/checkin-parser'
 import { builderBotClient } from '../../services/builderbot'
+
+/** Respuesta al canal: sin texto generado en PULZE; el copy lo arma BuilderBot. */
+const BB_REPLY = '\u200B'
 
 /**
  * Tipos de eventos de BuilderBot
@@ -181,11 +183,7 @@ export async function handleBuilderBotWebhook(req: Request, res: Response) {
     console.error('❌ Error en webhook:', error)
     // Siempre 200 + mensaje seguro: así BuilderBot no dispara su fallback ("problemas técnicos")
     // y el usuario recibe una sola respuesta. El mensaje "problemas técnicos" NO viene de PULZE.
-    const safeMessage =
-      'Disculpá, en este momento no pude procesar tu mensaje. ¿Podés intentar de nuevo en un segundo?'
-    res.status(200).json(
-      webhookPayload(safeMessage, { flow: 'menu', registered: true, nombre: null })
-    )
+    res.status(200).json(webhookPayload(BB_REPLY, { flow: 'menu', registered: true, nombre: null }))
   }
 }
 
@@ -226,7 +224,8 @@ function shouldSendViaBuilderBotApi(): boolean {
 }
 
 async function sendReplyViaBuilderBot(phone: string, message: string | null): Promise<void> {
-  if (!message?.trim() || !phone) return
+  // No enviar solo espacio/ZWSP: el mensaje lo genera BuilderBot
+  if (!message?.trim() || message === BB_REPLY || !phone) return
   if (!shouldSendViaBuilderBotApi() || !builderBotClient.canSend()) return
   const to = phone.includes('+') ? phone : `+${phone}`
   const result = await builderBotClient.sendMessage({ phone: to, message })
@@ -247,11 +246,7 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
   if (!phone) {
     // Sin teléfono (ej. prueba del panel de BuilderBot con @from sin resolver):
     console.warn('⚠️ Webhook sin "from" válido (posiblemente prueba de BuilderBot):', event.from)
-    const msgNoPhone =
-      '¡Hola! Soy PULZE, tu coach de bienestar. Ahora te toca registrarte. Voy a necesitar tu nombre completo y algunos datos (peso, estatura, edad, sexo) para armarte tu plan a medida. ¿Empezamos con tu nombre completo?'
-    return res.status(200).json(
-      webhookPayload(msgNoPhone, { flow: 'onboarding', registered: false, nombre: null })
-    )
+    return res.status(200).json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: false, nombre: null }))
   }
 
   // 1. Buscar o crear usuario (siempre por teléfono normalizado)
@@ -263,10 +258,8 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
   // Si es usuario nuevo → crear en DB + enviar instructions a BuilderBot, devolver flow
   if (!user) {
     await handleNewUser(phone, text)
-    console.log('🆕 Usuario nuevo → instructions enviadas a BuilderBot')
-    const msgNewUser =
-      '¡Bienvenido! Soy PULZE, tu coach de bienestar. Ahora te toca registrarte. Voy a necesitar tu nombre completo y algunos datos (peso, estatura, edad, sexo) para armarte tu plan a medida. ¿Empezamos con tu nombre completo?'
-    return res.json(webhookPayload(msgNewUser, { flow: 'onboarding', registered: false }))
+    console.log('🆕 Usuario nuevo → flujo onboarding (copy en BuilderBot)')
+    return res.json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: false }))
   }
 
   // Si no completó onboarding → limpiar historial, primero JSON, después instructions.
@@ -275,14 +268,9 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     await builderBotClient.clearConversation(event.from).catch((err) =>
       console.warn('⚠️ clear-conversation falló (no crítico):', err?.message)
     )
-    const { nombre: onboardingNombre, instructions } = await handleOnboarding(user.id, text, intent)
+    const { nombre: onboardingNombre } = await handleOnboarding(user.id, text, intent)
     const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
-    res.json(webhookPayload('\u200B', { flow: 'onboarding', registered: true, nombre }))
-    if (instructions) {
-      pushInstructionsToBuilderBot(instructions).catch((err) =>
-        console.error('❌ Error enviando instructions a BuilderBot:', err)
-      )
-    }
+    res.json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: true, nombre }))
     return
   }
 
@@ -327,9 +315,6 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     },
   })
 
-  // 4. Decidir tipo de respuesta según intent o formato
-  let response: string
-
   const looksLikeCheckIn =
     intent === 'checkin' ||
     text.toLowerCase().includes('check') ||
@@ -343,17 +328,17 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     intent === 'consulta_entreno' ||
     /\b(rutina|ejercicio|entrenar|gym|musculación|musculacion|cardio|pesas|repeticiones|series|estiramiento)\b/.test(lower)
 
+  let response = BB_REPLY
   if (looksLikeCheckIn) {
     response = await handleCheckIn(user.id, text, entities)
   } else if (looksLikeNutrition) {
-    response = await handleNutritionQuery(user, text, entities)
+    await handleNutritionQuery(user, text, entities)
   } else if (looksLikeTraining) {
-    response = await handleTrainingQuery(user, text, entities)
+    await handleTrainingQuery(user, text, entities)
   } else {
-    response = await handleGeneralConversation(user, text, intent)
+    await handleGeneralConversation(user, text, intent)
   }
 
-  // 5. Guardar respuesta en conversación
   await prisma.conversation.create({
     data: {
       userId: user.id,
@@ -363,7 +348,6 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     },
   })
 
-  // 5b. Actualizar resumen de conversación (para usar en el próximo prompt)
   await contextUpdater.updateConversationSummary(user.id, text, response)
 
   // 6. Actualizar stats
@@ -388,14 +372,6 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
   res.json(
     webhookPayload(response, { flow: 'menu', registered: true, nombre: user.name })
   )
-}
-
-/**
- * Envía las instructions al Plugin Assistant de BuilderBot.
- */
-async function pushInstructionsToBuilderBot(instructions: string): Promise<boolean> {
-  const result = await builderBotClient.updateAssistantInstructions(instructions)
-  return result.success
 }
 
 /**
@@ -433,51 +409,36 @@ async function handleOnboarding(
   userId: string,
   message: string,
   _intent?: string
-): Promise<{ nombre: string; instructions: string }> {
+): Promise<{ nombre: string }> {
   const user = await userService.findById(userId)
-  if (!user) return { nombre: '', instructions: '' }
+  if (!user) return { nombre: '' }
 
   let msg = (message || '').trim()
   if (/^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(msg)) msg = ''
 
-  let task = ''
   const u = user as typeof user & UserOnboardingFields
 
   // Paso 1: nombre
   if (user.name === 'pendiente') {
     if (msg) await userService.update(userId, { name: msg })
-    const nombre = msg || 'el usuario'
-    task =
-      `El usuario acaba de decirte su nombre: "${nombre}". ` +
-      `Confirmalo con entusiasmo. Preguntale su edad (en años). Una sola pregunta. ` +
-      `NO repitas el mensaje de bienvenida.`
 
   // Paso 2: edad (Bloque 1 — Datos iniciales)
   } else if (u.age == null) {
     const ageMatch = msg?.match(/\d+/)
     const age = ageMatch ? parseInt(ageMatch[0], 10) : null
     if (age != null && age >= 10 && age <= 120) await userService.update(userId, { age })
-    task =
-      `El usuario ${user.name}, ${age ?? '?'} años. ` +
-      `Preguntale SOLO su altura en cm (ej: 170). Una pregunta. Podés decir que puede agregar info si quiere.`
 
   // Paso 3: altura (Bloque 1)
   } else if (u.heightCm == null) {
     const hMatch = msg?.match(/\d+/)
     const h = hMatch ? parseInt(hMatch[0], 10) : null
     if (h != null && h >= 100 && h <= 250) await userService.update(userId, { heightCm: h })
-    task =
-      `El usuario ${user.name}, ${u.age} años, altura ${h ?? '?'} cm. ` +
-      `Preguntale SOLO su peso actual en kg (ej: 75). Una pregunta. Podés decir que puede agregar info si quiere.`
 
   // Paso 4: peso (Bloque 1)
   } else if (u.weightKg == null) {
     const wMatch = msg?.replace(',', '.').match(/\d+(\.\d+)?/)
     const w = wMatch ? parseFloat(wMatch[0]) : null
     if (w != null && w >= 30 && w <= 300) await userService.update(userId, { weightKg: w })
-    task =
-      `El usuario ${user.name}, ${u.age} años, ${u.heightCm} cm, ${w ?? '?'} kg. ` +
-      `Nueva sección: nivel de actividad. Pedile que elija 1 Sedentario, 2 Ligero, 3 Moderado, 4 Alto. Una sola pregunta.`
 
   // Paso 5: nivel de actividad (Bloque 2)
   } else if (!u.activityLevel || u.activityLevel === '') {
@@ -489,27 +450,17 @@ async function handleOnboarding(
       else if (/^4$|alto/i.test(msg)) level = 'alto'
     }
     if (level) await userService.update(userId, { activityLevel: level })
-    task =
-      `El usuario ${user.name}, actividad: ${level || 'pendiente'}. ` +
-      `Nueva sección: restricciones. Preguntale si tiene lesión o limitación física. Si no, "ninguna". Una pregunta. Decile que puede agregar detalles si quiere.`
 
   // Paso 6: restricciones físicas (Bloque 3)
   } else if (user.restrictions == null || user.restrictions === '') {
     const restrictions = msg && /ningun[oa]|nada|no tengo/i.test(msg) ? 'ninguna' : (msg?.trim() || null)
     if (restrictions) await userService.update(userId, { restrictions })
-    task = restrictions
-      ? `El usuario ${user.name}. Restricciones: ${restrictions}. ` +
-        `Nueva sección: alimentación. Preguntale SOLO cuántas comidas hace por día. Una pregunta. Decile que puede agregar info si quiere.`
-      : `Preguntale si tiene lesión o limitación física. Si no, "ninguna". Una pregunta. Decile que puede agregar detalles si quiere.`
 
   // Paso 7: comidas por día (Bloque 4)
   } else if (u.mealsPerDay == null) {
     const mealsMatch = msg?.match(/\d+/)
     const meals = mealsMatch ? parseInt(mealsMatch[0], 10) : null
     if (meals != null && meals >= 1 && meals <= 10) await userService.update(userId, { mealsPerDay: meals })
-    task =
-      `El usuario ${user.name}, ${meals ?? '?'} comidas/día. ` +
-      `Preguntale SOLO si consume suficiente proteína. Opciones: Sí, No, No sé. Una pregunta.`
 
   // Paso 8: proteína suficiente (Bloque 4)
   } else if (!u.proteinEnough || u.proteinEnough === '') {
@@ -520,37 +471,23 @@ async function handleOnboarding(
       else if (/no\s*s[eé]|no se|maso menos|depende/i.test(msg)) protein = 'no_sé'
     }
     if (protein) await userService.update(userId, { proteinEnough: protein })
-    task =
-      `El usuario ${user.name}, proteína: ${protein || 'pendiente'}. ` +
-      `Preguntale SOLO si tiene restricción alimentaria (celiaquía, vegan, etc). Si no, "ninguna". Una pregunta. Decile que puede agregar detalles si quiere.`
 
   // Paso 9: restricción alimentaria (Bloque 4)
   } else if (u.dietaryRestriction == null || u.dietaryRestriction === '') {
     const dietary = msg && /ningun[oa]|nada|no tengo/i.test(msg) ? 'ninguna' : (msg?.trim() || null)
     if (dietary) await userService.update(userId, { dietaryRestriction: dietary })
-    const hasDietary = !!(dietary && dietary.length > 0)
-    task = hasDietary
-      ? `El usuario ${user.name} completó datos de alimentación. ` +
-        `Nueva sección: estado actual. Pedile SOLO que califique su sueño del 1 al 10 (cómo duerme hoy). Una pregunta. Decile que puede agregar info si quiere.`
-      : `Preguntale si tiene restricción alimentaria. Si no, "ninguna". Una pregunta. Decile que puede agregar detalles si quiere.`
 
   // Paso 10: baseline sueño (Bloque 5)
   } else if (u.baselineSleep == null) {
     const nMatch = msg?.match(/\d+/)
     const n = nMatch ? parseInt(nMatch[0], 10) : null
     if (n != null && n >= 1 && n <= 10) await userService.update(userId, { baselineSleep: n })
-    task =
-      `El usuario ${user.name}, sueño: ${n ?? '?'}/10. ` +
-      `Pedile SOLO que califique su energía del 1 al 10 (cómo se siente hoy). Una pregunta.`
 
   // Paso 11: baseline energía (Bloque 5)
   } else if (u.baselineEnergy == null) {
     const nMatch = msg?.match(/\d+/)
     const n = nMatch ? parseInt(nMatch[0], 10) : null
     if (n != null && n >= 1 && n <= 10) await userService.update(userId, { baselineEnergy: n })
-    task =
-      `El usuario ${user.name}, energía: ${n ?? '?'}/10. ` +
-      `Pedile SOLO que califique su ánimo del 1 al 10 (cómo está emocionalmente hoy). Una pregunta.`
 
   // Paso 12: baseline ánimo (Bloque 5)
   } else if (u.baselineMood == null) {
@@ -563,54 +500,33 @@ async function handleOnboarding(
       if (!user.goal || user.goal === 'pendiente') {
         await userService.update(userId, { goal: 'bienestar' })
       }
-      task =
-        `El usuario ${user.name} completó el onboarding. Baseline: Sueño ${updated.baselineSleep}, Energía ${updated.baselineEnergy}, Ánimo ${updated.baselineMood}. ` +
-        `Confirmale que está todo listo y preguntale a qué hora prefiere su check-in diario. Mensaje de cierre cálido.`
-    } else {
-      task = `Pedile que califique su ánimo del 1 al 10. Una pregunta.`
     }
   } else {
     await userService.update(userId, { onboardingComplete: true })
-    task =
-      `El usuario ${user.name} completó su perfil. ` +
-      `Confirmale que está todo listo. Mensaje de cierre cálido.`
   }
 
   const updatedUser = await userService.findById(userId)
   const nombre = updatedUser?.name ?? user.name
-  const instructions = promptBuilderService.buildInstructions(
-    task,
-    {
-      name: user.name,
-      goal: user.goal !== 'pendiente' ? user.goal : undefined,
-      restrictions: user.restrictions,
-      bodyData: user.bodyData,
-      streak: user.currentStreak,
-    },
-    { onboardingMode: true }
-  )
-
-  return { nombre: nombre === 'pendiente' ? '' : nombre, instructions }
+  return { nombre: nombre === 'pendiente' ? '' : nombre }
 }
 
 /**
- * Manejar check-in diario.
- * Parsea el mensaje (ej. "4, 3, bien, sí"), guarda CheckIn, arma prompt y responde con IA.
+ * Check-in: parsea, persiste en DB. El mensaje al usuario lo genera BuilderBot.
  */
 async function handleCheckIn(
   userId: string,
   message: string,
-  entities?: Record<string, any>
+  _entities?: Record<string, any>
 ): Promise<string> {
   const parsed = parseCheckInMessage(message)
 
   if (!parsed) {
-    return `Para tu check-in diario, escribime así:\n1️⃣ Sueño (1-5)\n2️⃣ Energía (1-5)\n3️⃣ Cómo estás en una palabra\n4️⃣ ¿Entrenás hoy? (sí/no)\n\nEjemplo: 4, 3, bien, sí`
+    return BB_REPLY
   }
 
   const alreadyToday = await checkInService.hasCheckInToday(userId)
   if (alreadyToday) {
-    return `Ya registraste tu check-in de hoy. Si querés contarme algo más, escribime 😊`
+    return BB_REPLY
   }
 
   const checkIn = await checkInService.create({
@@ -625,27 +541,7 @@ async function handleCheckIn(
   const streak = await checkInService.calculateStreak(userId)
   await userService.updateStreak(userId, streak)
 
-  const user = await userService.findById(userId)
-  if (!user) return `Check-in guardado. ¡Seguimos!`
-
-  const recentConversations = await contextService.getConversationHistory(userId, 3)
-  const conversationsForPrompt = recentConversations.map((m) => ({ role: m.role, message: m.content }))
-  const { system, user: userPrompt } = promptBuilderService.buildCheckInPrompt(
-    user as any,
-    {
-      sleep: parsed.sleep,
-      energy: parsed.energy,
-      mood: parsed.mood,
-      willTrain: parsed.willTrain,
-    },
-    conversationsForPrompt
-  )
-
-  const response = await aiService.generateResponseWithPrompt(system, userPrompt)
-
-  let finalContent = response.content
-
-  // Si va a entrenar, agregar rutina adaptada del día
+  let note = `Check-in OK · racha ${streak}d · S${parsed.sleep} E${parsed.energy} · ${parsed.mood}`
   if (parsed.willTrain) {
     const routineResult = await adaptRoutineForUser({
       userId,
@@ -657,43 +553,19 @@ async function handleCheckIn(
       },
     })
     if (routineResult?.content) {
-      finalContent = `${response.content}\n\n---\n\n🏋️ **Tu rutina de hoy:**\n\n${routineResult.content}`
+      note += `\n\nRutina (plan estándar):\n${routineResult.content}`
     }
   }
 
   await prisma.checkIn.update({
     where: { id: checkIn.id },
-    data: { aiResponse: finalContent },
+    data: { aiResponse: note },
   })
 
-  return finalContent
+  return BB_REPLY
 }
 
-/**
- * Manejar consulta de nutrición
- * Usa la base de conocimiento (Contenidos categoría Nutrición) como referencia.
- */
-async function handleNutritionQuery(
-  user: any,
-  message: string,
-  entities?: Record<string, any>
-): Promise<string> {
-  const [userContext, knowledgeBase, history] = await Promise.all([
-    contextService.getUserContext(user.id),
-    getNutritionKnowledgeBase(),
-    contextService.getConversationHistory(user.id, 5),
-  ])
-
-  const fullContext = knowledgeBase
-    ? `${userContext}\n\n${knowledgeBase}\n\nUsá la base de conocimiento como referencia principal. Adaptá la info al usuario.`
-    : userContext
-
-  const response = await aiService.generateCoachResponse(
-    message,
-    fullContext,
-    history
-  )
-
+async function handleNutritionQuery(user: any, message: string, entities?: Record<string, any>): Promise<void> {
   if (entities?.food) {
     await prisma.nutritionLog.create({
       data: {
@@ -701,59 +573,18 @@ async function handleNutritionQuery(
         mealType: 'consulta',
         description: message,
         userQuery: message,
-        aiResponse: response.content,
+        aiResponse: null,
       },
     })
   }
-
-  return response.content
 }
 
-/**
- * Manejar consulta de entrenamiento
- * Usa la base de conocimiento (Contenidos Entrenamiento + Planes estándar) como referencia.
- */
-async function handleTrainingQuery(
-  user: any,
-  message: string,
-  entities?: Record<string, any>
-): Promise<string> {
-  const [userContext, knowledgeBase, history] = await Promise.all([
-    contextService.getUserContext(user.id),
-    getTrainingKnowledgeBase(),
-    contextService.getConversationHistory(user.id, 5),
-  ])
-
-  const fullContext = knowledgeBase
-    ? `${userContext}\n\n${knowledgeBase}\n\nUsá la base de conocimiento y los planes como referencia. Adaptá rutinas y ejercicios a las restricciones y nivel del usuario.`
-    : userContext
-
-  const response = await aiService.generateCoachResponse(
-    message,
-    fullContext,
-    history
-  )
-
-  return response.content
+async function handleTrainingQuery(_user: any, _message: string, _entities?: Record<string, any>): Promise<void> {
+  /* Copy en BuilderBot */
 }
 
-/**
- * Manejar conversación general
- */
-async function handleGeneralConversation(
-  user: any,
-  message: string,
-  intent?: string
-): Promise<string> {
-  // Para conversación general, usar contexto ligero
-  const context = await contextService.getUserContext(user.id)
-
-  const response = await aiService.generateCoachResponse(
-    message,
-    context
-  )
-
-  return response.content
+async function handleGeneralConversation(_user: any, _message: string, _intent?: string): Promise<void> {
+  /* Copy en BuilderBot */
 }
 
 /**
@@ -808,20 +639,8 @@ async function handleMediaMessage(event: BuilderBotMessage, res: Response) {
       },
     })
 
-    const response = `Vi tu foto 📸\n\n${
-      analysis.detected_objects?.length
-        ? `Detecté: ${analysis.detected_objects.join(', ')}\n\n`
-        : ''
-    }¿Cómo estuvo? ¿Te sentiste satisfecho/a?`
-
-    await sendReplyViaBuilderBot(event.from, response)
-    return res.json(
-      webhookPayload(response, { flow: 'menu', registered: true, nombre: user.name })
-    )
+    return res.json(webhookPayload(BB_REPLY, { flow: 'menu', registered: true, nombre: user.name }))
   }
 
-  // Para otros tipos de imágenes
-  res.json(
-    webhookPayload('Recibí tu imagen 👍', { flow: 'menu', registered: true, nombre: user.name })
-  )
+  res.json(webhookPayload(BB_REPLY, { flow: 'menu', registered: true, nombre: user.name }))
 }
