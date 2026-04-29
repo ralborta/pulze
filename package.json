@@ -11,6 +11,7 @@
     "dev:bot": "pnpm --filter @pulze/bot dev",
     "dev:web": "pnpm --filter @pulze/web dev",
     "dev:backoffice": "pnpm --filter @pulze/backoffice dev",
+    "build:database": "pnpm --filter @pulze/database build",
     "build:bot": "pnpm --filter @pulze/bot build",
     "build:web": "pnpm --filter @pulze/web build",
     "build:backoffice": "pnpm --filter @pulze/backoffice build",

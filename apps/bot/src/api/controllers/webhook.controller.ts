@@ -276,6 +276,24 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
   // Si es usuario nuevo → crear en DB + enviar instructions a BuilderBot, devolver flow
   if (!user) {
     await handleNewUser(phone, text)
+    const created = await userService.findByPhone(phone)
+    if (created && text) {
+      await prisma.conversation.create({
+        data: {
+          userId: created.id,
+          role: 'user',
+          message: text,
+          metadata: { intent, entities, type, phase: 'first_contact' },
+        },
+      })
+      await prisma.userStats.update({
+        where: { userId: created.id },
+        data: {
+          messagesReceived: { increment: 1 },
+          lastActiveDate: new Date(),
+        },
+      })
+    }
     console.log('🆕 Usuario nuevo → flujo onboarding (copy en BuilderBot)')
     return res.json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: false }))
   }
@@ -286,8 +304,37 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     await builderBotClient.clearConversation(event.from).catch((err) =>
       console.warn('⚠️ clear-conversation falló (no crítico):', err?.message)
     )
+    if (text) {
+      await prisma.conversation.create({
+        data: {
+          userId: user.id,
+          role: 'user',
+          message: text,
+          metadata: { intent, entities, type, phase: 'onboarding' },
+        },
+      })
+      await prisma.userStats.update({
+        where: { userId: user.id },
+        data: {
+          messagesReceived: { increment: 1 },
+          lastActiveDate: new Date(),
+        },
+      })
+    }
     const { nombre: onboardingNombre } = await handleOnboarding(user.id, text, intent)
     const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
+    await prisma.conversation.create({
+      data: {
+        userId: user.id,
+        role: 'assistant',
+        message: BB_REPLY,
+        metadata: { intent, phase: 'onboarding' },
+      },
+    })
+    await prisma.userStats.update({
+      where: { userId: user.id },
+      data: { messagesSent: { increment: 1 } },
+    })
     res.json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: true, nombre }))
     return
   }
@@ -432,7 +479,7 @@ async function handleOnboarding(
   if (!user) return { nombre: '' }
 
   let msg = (message || '').trim()
-  if (/^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(msg)) msg = ''
+  if (isPlaceholder(msg)) msg = ''
 
   const u = user as typeof user & UserOnboardingFields
 
@@ -635,13 +682,14 @@ async function handleMessageStatus(event: BuilderBotMessage, res: Response) {
  * Manejar mensaje con media
  */
 async function handleMediaMessage(event: BuilderBotMessage, res: Response) {
-  const { from, media, analysis } = event
+  const { media, analysis } = event
+  const fromNorm = normalizePhone(event.from)
 
   if (!media) {
     return res.status(200).json({ received: true })
   }
 
-  const user = await userService.findByPhone(from)
+  const user = fromNorm ? await userService.findByPhone(fromNorm) : null
   if (!user) {
     return res.status(200).json({ received: true })
   }

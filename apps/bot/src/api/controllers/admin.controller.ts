@@ -8,29 +8,46 @@ import { AuthRequest } from '../middleware/auth'
  */
 export async function getUsers(req: AuthRequest, res: Response) {
   try {
-    const { status, premium, search } = req.query
+    const { status, premium, search, clean } = req.query
     const page = parseInt(req.query.page as string) || 1
     const limit = parseInt(req.query.limit as string) || 20
 
-    const where: any = {}
+    /** Por defecto excluye filas basura (placeholders de webhook mal resueltos, newsletter JIDs, etc.) */
+    const excludeJunk = clean !== 'false' && clean !== '0'
+
+    const conditions: object[] = []
 
     if (status === 'active') {
-      where.isActive = true
+      conditions.push({ isActive: true })
     } else if (status === 'inactive') {
-      where.isActive = false
+      conditions.push({ isActive: false })
     }
 
     if (premium === 'true') {
-      where.isPremium = true
+      conditions.push({ isPremium: true })
     }
 
     if (search) {
-      where.OR = [
-        { name: { contains: search as string, mode: 'insensitive' } },
-        { phone: { contains: search as string } },
-        { email: { contains: search as string, mode: 'insensitive' } },
-      ]
+      conditions.push({
+        OR: [
+          { name: { contains: search as string, mode: 'insensitive' } },
+          { phone: { contains: search as string } },
+          { email: { contains: search as string, mode: 'insensitive' } },
+        ],
+      })
     }
+
+    if (excludeJunk) {
+      conditions.push(
+        { NOT: { phone: { contains: '@' } } },
+        { NOT: { phone: { contains: '\u007b' } } },
+        { NOT: { phone: { contains: '(' } } },
+        { NOT: { name: { equals: '{body}' } } },
+        { NOT: { name: { startsWith: '_event_' } } }
+      )
+    }
+
+    const where = conditions.length > 0 ? { AND: conditions } : {}
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({
@@ -109,7 +126,7 @@ export async function getUserById(req: AuthRequest, res: Response) {
         },
         conversations: {
           orderBy: { timestamp: 'desc' },
-          take: 20,
+          take: 50,
         },
       },
     })
@@ -175,6 +192,19 @@ export async function getAnalytics(req: AuthRequest, res: Response) {
       ? activeUsers.reduce((acc: number, u: { currentStreak: number }) => acc + u.currentStreak, 0) / activeUsers.length
       : 0
 
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+
+    const [newUsersToday, assistantMessagesToday] = await Promise.all([
+      prisma.user.count({ where: { createdAt: { gte: todayStart } } }),
+      prisma.conversation.count({
+        where: {
+          role: 'assistant',
+          timestamp: { gte: todayStart },
+        },
+      }),
+    ])
+
     return res.json({
       users: {
         ...userStats,
@@ -189,6 +219,11 @@ export async function getAnalytics(req: AuthRequest, res: Response) {
         checkInsPerUser: userStats.active > 0 
           ? Math.round((checkInStats.total / userStats.active) * 10) / 10 
           : 0,
+      },
+      activityToday: {
+        newUsers: newUsersToday,
+        checkInsCompleted: checkInStats.todayCount,
+        messagesSent: assistantMessagesToday,
       },
     })
   } catch (error: any) {

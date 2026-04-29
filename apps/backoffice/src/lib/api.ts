@@ -72,7 +72,17 @@ export interface UsersResponse {
 export interface AnalyticsResponse {
   users: { total: number; active: number; premium: number }
   checkIns?: { total: number; todayCount: number }
-  engagement?: { retention7d: number; averageStreak: number }
+  engagement?: {
+    retention7d: number
+    averageStreak: number
+    checkInsPerUser?: number
+  }
+  /** Métricas del día (hora local del servidor API) */
+  activityToday?: {
+    newUsers: number
+    checkInsCompleted: number
+    messagesSent: number
+  }
 }
 
 export interface StandardPlan {
@@ -137,12 +147,20 @@ export interface TemplatesResponse {
 
 export const api = {
   users: {
-    list: (params?: { status?: string; search?: string; page?: number; limit?: number }) => {
+    list: (params?: {
+      status?: string
+      search?: string
+      page?: number
+      limit?: number
+      /** false o "0" incluye filas basura (placeholders); por defecto el API excluye junk */
+      clean?: boolean
+    }) => {
       const sp = new URLSearchParams()
       if (params?.status) sp.set('status', params.status)
       if (params?.search) sp.set('search', params.search)
       if (params?.page) sp.set('page', String(params.page))
       if (params?.limit) sp.set('limit', String(params.limit))
+      if (params?.clean === false) sp.set('clean', 'false')
       const q = sp.toString()
       return fetchApi<UsersResponse>(`/admin/users${q ? `?${q}` : ''}`)
     },

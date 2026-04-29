@@ -98,9 +98,23 @@ export default function BackofficePage() {
               Engagement
             </h2>
             <div className="space-y-4">
-              <MetricRow label="Racha promedio" value="6.5 días" />
-              <MetricRow label="Check-ins/usuario" value="4.2/semana" />
-              <MetricRow label="Tiempo respuesta" value="< 2 min" />
+              <MetricRow
+                label="Racha promedio"
+                value={
+                  analytics?.engagement?.averageStreak != null
+                    ? `${analytics.engagement.averageStreak} días`
+                    : '—'
+                }
+              />
+              <MetricRow
+                label="Check-ins/usuario (7d)"
+                value={
+                  analytics?.engagement?.checkInsPerUser != null
+                    ? `${analytics.engagement.checkInsPerUser}/sem (aprox.)`
+                    : '—'
+                }
+              />
+              <MetricRow label="Retención 7d" value={`${analytics?.engagement?.retention7d ?? '—'}%`} />
             </div>
           </div>
 
@@ -111,9 +125,18 @@ export default function BackofficePage() {
               Hoy
             </h2>
             <div className="space-y-4">
-              <MetricRow label="Nuevos usuarios" value="23" />
-              <MetricRow label="Check-ins completados" value="432" />
-              <MetricRow label="Mensajes enviados" value="1,245" />
+              <MetricRow
+                label="Nuevos usuarios"
+                value={String(analytics?.activityToday?.newUsers ?? '—')}
+              />
+              <MetricRow
+                label="Check-ins completados"
+                value={String(analytics?.activityToday?.checkInsCompleted ?? '—')}
+              />
+              <MetricRow
+                label="Respuestas bot (asistente)"
+                value={String(analytics?.activityToday?.messagesSent ?? '—')}
+              />
             </div>
           </div>
         </div>
