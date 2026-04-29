@@ -42,9 +42,7 @@ jobs:
   # O conectar el repo en Railway (Settings → Source → Connect Repo) para deploy automático al hacer push
   deploy-railway:
     needs: test
-    if: |
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
-      secrets.RAILWAY_TOKEN != ''
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
@@ -54,21 +52,22 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Install Railway CLI
+        if: ${{ secrets.RAILWAY_TOKEN != '' && secrets.RAILWAY_SERVICE_ID != '' }}
         run: npm i -g @railway/cli
       
       - name: Deploy to Railway
+        if: ${{ secrets.RAILWAY_TOKEN != '' && secrets.RAILWAY_SERVICE_ID != '' }}
         run: railway up --service $RAILWAY_SERVICE_ID --detach
 
   deploy-vercel:
     needs: test
-    if: |
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
-      secrets.VERCEL_TOKEN != ''
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       
       - name: Deploy Web to Vercel
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
         uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
@@ -77,6 +76,7 @@ jobs:
           working-directory: apps/web
           
       - name: Deploy Backoffice to Vercel
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
         uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
