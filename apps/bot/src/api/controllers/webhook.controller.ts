@@ -44,13 +44,31 @@ interface BuilderBotMessage {
   timestamp: string
 }
 
+function isPlaceholder(value: string): boolean {
+  return /^@\w+$|^\{\{\s*\w+\s*\}\}$|^\{\s*\w+\s*\}$/.test(value.trim())
+}
+
+/**
+ * Normaliza teléfono desde distintos formatos de BuilderBot:
+ * - +54911..., 54911..., 54911...@s.whatsapp.net, 1203...@newsletter
+ * Devuelve solo dígitos válidos (8-15) o string vacío.
+ */
+function sanitizePhone(value: string): string {
+  if (!value) return ''
+  const raw = String(value).trim()
+  if (!raw || isPlaceholder(raw)) return ''
+  const digits = raw.replace(/\D+/g, '')
+  if (digits.length < 8 || digits.length > 15) return ''
+  return digits
+}
+
 /** Extrae un teléfono desde cualquier formato (string, number, object con id/wa_id). */
 function extractPhone(value: any): string {
   if (value == null) return ''
-  if (typeof value === 'number') return String(value)
-  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number') return sanitizePhone(String(value))
+  if (typeof value === 'string') return sanitizePhone(value)
   const s = value?.id ?? value?.wa_id ?? value?.phone ?? value?.sender
-  return s != null ? String(s).trim() : ''
+  return s != null ? sanitizePhone(String(s)) : ''
 }
 
 /** Extrae texto de mensaje desde string u objeto (body, text.body, etc.). */
@@ -95,8 +113,8 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
   const whatsappName: string = typeof data.name === 'string' ? data.name.trim() : ''
 
   // Placeholders no resueltos (@body, @from, {{body}}) → no son contenido real (solo ocurre en pruebas)
-  if (/^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(message.trim())) message = ''
-  if (from && /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(from.trim())) {
+  if (isPlaceholder(message)) message = ''
+  if (from && isPlaceholder(from)) {
     console.warn('⚠️ from es placeholder (@from): no se puede identificar usuario')
     from = ''
   }
@@ -190,7 +208,7 @@ export async function handleBuilderBotWebhook(req: Request, res: Response) {
 /** Normalizar teléfono para búsqueda/creación (quitar + y espacios) */
 function normalizePhone(phone: string): string {
   if (!phone || typeof phone !== 'string') return ''
-  return phone.replace(/\s+/g, '').replace(/^\+/, '').trim()
+  return sanitizePhone(phone)
 }
 
 /**

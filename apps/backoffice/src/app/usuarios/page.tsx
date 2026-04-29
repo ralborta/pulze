@@ -295,6 +295,10 @@ function UserDetailModal({ user, onClose }: { user: User; onClose: () => void })
   })
 
   const u = fullUser ?? user
+  const prettyMessage = (msg?: string) => {
+    const text = (msg || '').replace(/\u200B/g, '').trim()
+    return text || '(sin texto visible; respuesta enviada por flujo de BuilderBot)'
+  }
 
   const joinDate = u.createdAt
     ? format(new Date(u.createdAt), "d 'de' MMMM yyyy", { locale: es })
@@ -490,7 +494,7 @@ function UserDetailModal({ user, onClose }: { user: User; onClose: () => void })
                       </span>
                     </div>
                     <p className="text-sm text-gray-200 whitespace-pre-wrap break-words">
-                      {c.message || '-'}
+                      {prettyMessage(c.message)}
                     </p>
                   </div>
                 ))}
