@@ -26,10 +26,10 @@ export function getBotHealth(_req: Request, res: Response) {
  * GET /api/bot/users/:phone/context
  * Lectura de estado para ramificar flows en BuilderBot (requiere X-API-Key).
  */
-/** Solo dígitos, largo típico WhatsApp (sin + en path). Rechaza placeholders tipo <TELÉFONO> o {{from}}. */
+/** Solo dígitos (8–20) para teléfonos E.164 y JIDs/LID numéricos largos de WhatsApp. */
 function isValidPhonePathSegment(s: string): boolean {
   if (!s || /[<>{}@]/.test(s)) return false
-  return /^\d{8,15}$/.test(s)
+  return /^\d{8,20}$/.test(s)
 }
 
 export async function getUserContext(req: Request, res: Response) {

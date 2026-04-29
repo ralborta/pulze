@@ -49,16 +49,23 @@ function isPlaceholder(value: string): boolean {
 }
 
 /**
- * Normaliza teléfono desde distintos formatos de BuilderBot:
- * - +54911..., 54911..., 54911...@s.whatsapp.net, 1203...@newsletter
- * Devuelve solo dígitos válidos (8-15) o string vacío.
+ * Normaliza identificador de contacto entrante (BuilderBot / WhatsApp):
+ * - Toma el segmento antes de @ si viene como JID (`549...@s.whatsapp.net`, `...@newsletter`).
+ * - Deja solo dígitos; si no hay dígitos útiles → vacío.
+ * - Mínimo 8 dígitos (número razonable); máximo 20 para admitir LID/JIDs largos (el límite E.164
+ *   de 15 dígitos no aplica a todos los formatos que envía WhatsApp Cloud API).
  */
 function sanitizePhone(value: string): string {
   if (!value) return ''
   const raw = String(value).trim()
   if (!raw || isPlaceholder(raw)) return ''
-  const digits = raw.replace(/\D+/g, '')
-  if (digits.length < 8 || digits.length > 15) return ''
+  const localPart = raw.split('@')[0] ?? raw
+  const digits = localPart.replace(/\D+/g, '')
+  if (digits.length < 8) return ''
+  if (digits.length > 20) {
+    console.warn('⚠️ from demasiado largo tras normalizar, se trunca a 20 dígitos:', digits.slice(0, 6) + '…')
+    return digits.slice(0, 20)
+  }
   return digits
 }
 
@@ -92,7 +99,7 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
   const data = raw.data || {}
 
   // eventName puede ser "message.incoming", "message.outgoing", "message", etc.
-  const eventNameRaw: string = raw.eventName ?? raw.event ?? ''
+  const eventNameRaw: string = String(raw.eventName ?? raw.event ?? '').toLowerCase()
   // Normalizar a los tipos que usa el switch: message | status | media
   let event = 'message'
   if (eventNameRaw.includes('incoming') || eventNameRaw === 'message') event = 'message'
