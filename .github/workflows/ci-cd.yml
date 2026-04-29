@@ -42,7 +42,9 @@ jobs:
   # O conectar el repo en Railway (Settings → Source → Connect Repo) para deploy automático al hacer push
   deploy-railway:
     needs: test
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: |
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
+      secrets.RAILWAY_TOKEN != ''
     runs-on: ubuntu-latest
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
@@ -59,7 +61,9 @@ jobs:
 
   deploy-vercel:
     needs: test
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: |
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
+      secrets.VERCEL_TOKEN != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
