@@ -19,6 +19,7 @@ import {
   Zap,
   Smile,
   AlertCircle,
+  MessageSquare,
 } from 'lucide-react'
 import { api, type User } from '@/lib/api'
 import { format } from 'date-fns'
@@ -457,6 +458,46 @@ function UserDetailModal({ user, onClose }: { user: User; onClose: () => void })
                 🔥 {u.currentStreak} días racha
               </span>
             </div>
+          </section>
+
+          {/* Conversaciones recientes */}
+          <section>
+            <h3 className="text-sm font-semibold text-cyan-400 mb-3 flex items-center gap-2">
+              <MessageSquare className="w-4 h-4" />
+              Conversaciones recientes
+            </h3>
+            {u.conversations && u.conversations.length > 0 ? (
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {u.conversations.map((c) => (
+                  <div
+                    key={c.id}
+                    className="rounded-xl border border-white/10 bg-white/5 p-3"
+                  >
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span
+                        className={`px-2 py-0.5 rounded-full ${
+                          c.role === 'user'
+                            ? 'bg-blue-500/20 text-blue-300'
+                            : 'bg-emerald-500/20 text-emerald-300'
+                        }`}
+                      >
+                        {c.role === 'user' ? 'Usuario' : 'Asistente'}
+                      </span>
+                      <span className="text-gray-500">
+                        {c.timestamp
+                          ? format(new Date(c.timestamp), "d MMM yyyy, HH:mm", { locale: es })
+                          : '-'}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-200 whitespace-pre-wrap break-words">
+                      {c.message || '-'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 italic">No hay conversaciones registradas para este usuario.</p>
+            )}
           </section>
 
           <p className="text-xs text-gray-500">

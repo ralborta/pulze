@@ -46,6 +46,19 @@ export interface User {
   botEnabled: boolean
   createdAt: string
   stats?: { currentStreak: number; longestStreak: number }
+  conversations?: Array<{
+    id: string
+    role: string
+    message: string
+    timestamp: string
+  }>
+  checkIns?: Array<{
+    id: string
+    timestamp: string
+    sleep: number
+    energy: number
+    mood: string
+  }>
 }
 
 export interface UsersResponse {
