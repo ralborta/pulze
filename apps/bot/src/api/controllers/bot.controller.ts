@@ -179,6 +179,8 @@ export async function getUserContext(req: Request, res: Response) {
         userExists: false,
         onboardingComplete: false,
         phone: '',
+        /** Lo que llegó en el path (ej. "@from"): si ves esto, BuilderBot no sustituyó la variable en la URL. */
+        receivedInPath: raw,
       })
     }
     const phone = sanitizePhone(raw)
