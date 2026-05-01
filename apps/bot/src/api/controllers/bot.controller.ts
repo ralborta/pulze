@@ -17,10 +17,9 @@ export function getBotHealth(_req: Request, res: Response) {
 /**
  * GET /api/bot/users/:phone/context
  * Ramificación Inicio en BuilderBot (requiere X-API-Key).
- * - registered: true solo si onboardingComplete en DB (mismo criterio que el webhook).
- *   false → Registro (alta o terminar onboarding); true → Seguimiento.
- * - exists: si hay fila en DB (útil para soporte / reglas avanzadas).
- * El contexto enriquecido para el coach va en GET …/coaching-context.
+ * registered: true si el teléfono ya tiene usuario en DB → flow Seguimiento; false → Registro (alta).
+ * (El onboarding incompleto se resuelve dentro de Pulze / otros flows, no forzando Registro acá.)
+ * Contexto enriquecido: GET …/coaching-context.
  */
 /** Solo dígitos (8–20) para teléfonos E.164 y JIDs/LID numéricos largos de WhatsApp. */
 function isValidPhonePathSegment(s: string): boolean {
@@ -171,8 +170,7 @@ export async function getUserContext(req: Request, res: Response) {
       return res.status(400).json({ error: 'Teléfono inválido o faltante' })
     }
     if (isPlaceholder(raw)) {
-      /** Sin número resuelto: tratar como no registrado. */
-      return res.json({ registered: false, exists: false })
+      return res.json({ registered: false })
     }
     const phone = sanitizePhone(raw)
     if (!phone) {
@@ -187,13 +185,7 @@ export async function getUserContext(req: Request, res: Response) {
     }
 
     const user = await userService.findByPhone(phone)
-    if (!user) {
-      return res.json({ registered: false, exists: false })
-    }
-    return res.json({
-      registered: !!user.onboardingComplete,
-      exists: true,
-    })
+    return res.json({ registered: !!user })
   } catch (error: any) {
     console.error('Error getUserContext:', error)
     return res.status(500).json({ error: 'Error al obtener contexto del usuario' })
