@@ -14,7 +14,7 @@ const BB_REPLY = '\u200B'
  * BuilderBot puede enviar el texto en "message" o en "body"
  */
 interface BuilderBotMessage {
-  event: 'message' | 'status' | 'media' | 'outgoing'
+  event: 'message' | 'status' | 'media' | 'outgoing' | 'internal_builderbot'
   from: string
   message?: string
   body?: string
@@ -97,11 +97,20 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
   const raw = body || {}
   const data = raw.data || {}
 
+  /** Señales internas (intent + value) sin projectId: no son mensaje de usuario; evitan falsos "message". */
+  const isInternalIntentSignal =
+    raw &&
+    typeof raw === 'object' &&
+    raw.projectId == null &&
+    raw.intent != null &&
+    Object.prototype.hasOwnProperty.call(raw, 'value')
+
   // eventName puede ser "message.incoming", "message.outgoing", "message", etc.
   const eventNameRaw: string = String(raw.eventName ?? raw.event ?? '').toLowerCase()
   // Normalizar a los tipos que usa el switch: message | status | media
   let event = 'message'
-  if (eventNameRaw.includes('incoming') || eventNameRaw === 'message') event = 'message'
+  if (isInternalIntentSignal) event = 'internal_builderbot'
+  else if (eventNameRaw.includes('incoming') || eventNameRaw === 'message') event = 'message'
   else if (eventNameRaw.includes('outgoing')) event = 'outgoing'
   else if (eventNameRaw.includes('status')) event = 'status'
   else if (eventNameRaw.includes('media')) event = 'media'
@@ -174,19 +183,34 @@ export async function handleBuilderBotWebhook(req: Request, res: Response) {
     const text = (event.message ?? event.body ?? '').trim()
     const hasMessage = !!text
 
-    if (!hasMessage && req.body?.data && typeof req.body.data === 'object') {
-      console.log('📦 data keys (mensaje no extraído):', Object.keys(req.body.data), 'valores from/body:', {
-        dataFrom: req.body.data?.from,
-        dataBody: typeof req.body.data?.body === 'string' ? req.body.data.body.slice(0, 80) : req.body.data?.body,
+    const webhookVerbose = process.env.PULZE_WEBHOOK_VERBOSE === 'true'
+    const bodyRoot = req.body || {}
+    const hasProjectEnvelope = bodyRoot.projectId != null
+
+    // Solo diagnóstico útil: envelope típico Cloud (projectId) pero sin texto extraíble
+    if (
+      !hasMessage &&
+      hasProjectEnvelope &&
+      bodyRoot.data &&
+      typeof bodyRoot.data === 'object' &&
+      eventType !== 'outgoing' &&
+      eventType !== 'internal_builderbot'
+    ) {
+      console.log('📦 data keys (mensaje no extraído):', Object.keys(bodyRoot.data), 'valores from/body:', {
+        dataFrom: bodyRoot.data?.from,
+        dataBody:
+          typeof bodyRoot.data?.body === 'string' ? bodyRoot.data.body.slice(0, 80) : bodyRoot.data?.body,
       })
     }
-    console.log('📩 Webhook recibido:', {
-      event: eventType,
-      from: from ? from.slice(0, 6) + '***' : '(vacío)',
-      hasMessage,
-      messageLen: text.length,
-      topKeys: Object.keys(req.body || {}),
-    })
+    if (eventType !== 'internal_builderbot' && (eventType !== 'outgoing' || webhookVerbose)) {
+      console.log('📩 Webhook recibido:', {
+        event: eventType,
+        from: from ? from.slice(0, 6) + '***' : '(vacío)',
+        hasMessage,
+        messageLen: text.length,
+        topKeys: Object.keys(bodyRoot),
+      })
+    }
 
     const ev = { ...event, event: eventType }
 
@@ -201,6 +225,10 @@ export async function handleBuilderBotWebhook(req: Request, res: Response) {
 
       case 'media':
         await handleMediaMessage(ev, res)
+        break
+
+      case 'internal_builderbot':
+        res.status(200).json({ received: true, event: 'internal_builderbot' })
         break
 
       case 'outgoing':
