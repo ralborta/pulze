@@ -17,8 +17,10 @@ export function getBotHealth(_req: Request, res: Response) {
 /**
  * GET /api/bot/users/:phone/context
  * Ramificación Inicio en BuilderBot (requiere X-API-Key).
- * registered: true si el teléfono ya tiene usuario en DB → flow Seguimiento; false → Registro (alta).
- * (El onboarding incompleto se resuelve dentro de Pulze / otros flows, no forzando Registro acá.)
+ * registered: true solo si el usuario existe y ya completó onboarding (onboardingComplete) → Seguimiento;
+ * false → Registro (alta o onboarding incompleto).
+ * Nota: un usuario “en progreso” (fila en DB, nombre/edad pendientes) debe seguir en Registro;
+ * usar !!user rompía la ramificación y mezclaba Seguimiento con el alta.
  * Contexto enriquecido: GET …/coaching-context.
  */
 /** Solo dígitos (8–20) para teléfonos E.164 y JIDs/LID numéricos largos de WhatsApp. */
@@ -185,7 +187,8 @@ export async function getUserContext(req: Request, res: Response) {
     }
 
     const user = await userService.findByPhone(phone)
-    return res.json({ registered: !!user })
+    const registered = !!(user?.onboardingComplete)
+    return res.json({ registered })
   } catch (error: any) {
     console.error('Error getUserContext:', error)
     return res.status(500).json({ error: 'Error al obtener contexto del usuario' })
