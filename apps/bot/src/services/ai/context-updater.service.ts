@@ -15,6 +15,17 @@ import { patternAnalyzer } from './pattern-analyzer.service'
 export class ContextUpdater {
   private readonly UPDATE_THRESHOLD = 50 // Regenerar resumen cada 50 mensajes
 
+  /** Evita que links, pegotes largos o basura de reenvíos entre en aiSummary (coaching-context). */
+  private shouldRecordMessageInSummary(text: string): boolean {
+    const t = (text || '').trim()
+    if (!t) return false
+    if (t.length > 900) return false
+    if (/https?:\/\//i.test(t)) return false
+    if (/\butm_(source|medium|campaign|content)=/i.test(t)) return false
+    if (t.split(/\r?\n/).length > 12) return false
+    return true
+  }
+
   /**
    * Actualizar contexto después de un check-in
    */
@@ -96,8 +107,13 @@ export class ContextUpdater {
         })
       }
 
+      if (!this.shouldRecordMessageInSummary(userMessage)) {
+        return
+      }
+
+      const safeUser = userMessage.slice(0, 500)
       // Sin OpenAI: el copy lo genera BuilderBot. Opcional: podés guardar último turno en texto plano.
-      const snippet = `${(context.aiSummary || '').slice(-3500)}\nU: ${userMessage.slice(0, 500)}`
+      const snippet = `${(context.aiSummary || '').slice(-3500)}\nU: ${safeUser}`
       await prisma.userContext.update({
         where: { userId },
         data: {
