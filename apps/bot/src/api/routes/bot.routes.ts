@@ -5,6 +5,7 @@ import { requireApiKey } from '../middleware/apiKey'
 import {
   getBotHealth,
   getUserContext,
+  getCoachingContext,
   postOutboundMessage,
 } from '../controllers/bot.controller'
 
@@ -28,6 +29,12 @@ router.post('/inbound', verifyBuilderBotWebhook, handleBuilderBotWebhook)
  * Estado del usuario para ramificar en BuilderBot. Requiere X-API-Key (N8N_API_KEY / API_KEY).
  */
 router.get('/users/:phone/context', requireApiKey, getUserContext)
+
+/**
+ * GET /api/bot/users/:phone/coaching-context
+ * Bloques contextBlock / routineBlock / nutritionBlock para BuilderBot (misma auth que context).
+ */
+router.get('/users/:phone/coaching-context', requireApiKey, getCoachingContext)
 
 /**
  * POST /api/bot/messages/outbound
