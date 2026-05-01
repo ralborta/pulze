@@ -20,6 +20,7 @@ export function getBotHealth(_req: Request, res: Response) {
  * Ramificación Inicio en BuilderBot (requiere X-API-Key).
  * registered: true solo si el usuario existe y ya completó onboarding (onboardingComplete) → Seguimiento;
  * false → Registro (alta o onboarding incompleto).
+ * Respuesta incluye `phone` (solo dígitos, normalizado como en la búsqueda) para depuración en BuilderBot.
  * Nota: un usuario “en progreso” (fila en DB, nombre/edad pendientes) debe seguir en Registro;
  * usar !!user rompía la ramificación y mezclaba Seguimiento con el alta.
  * Contexto enriquecido: GET …/coaching-context.
@@ -177,6 +178,7 @@ export async function getUserContext(req: Request, res: Response) {
         registered: false,
         userExists: false,
         onboardingComplete: false,
+        phone: '',
       })
     }
     const phone = sanitizePhone(raw)
@@ -196,7 +198,7 @@ export async function getUserContext(req: Request, res: Response) {
     const onboardingComplete = !!(user?.onboardingComplete)
     /** Misma semántica que antes del campo extra: solo “listo para Seguimiento” si onboarding cerró en DB. */
     const registered = onboardingComplete
-    return res.json({ registered, userExists, onboardingComplete })
+    return res.json({ registered, userExists, onboardingComplete, phone })
   } catch (error: any) {
     console.error('Error getUserContext:', error)
     return res.status(500).json({ error: 'Error al obtener contexto del usuario' })
