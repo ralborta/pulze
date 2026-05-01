@@ -1,4 +1,5 @@
 import { Request, Response } from 'express'
+import type { Prisma } from '@prisma/client'
 import { userService, prisma } from '@pulze/database'
 import { builderBotClient } from '../../services/builderbot'
 import { decodePhonePathSegment, isPlaceholder, sanitizePhone } from '../../utils/phone'
@@ -172,7 +173,11 @@ export async function getUserContext(req: Request, res: Response) {
       return res.status(400).json({ error: 'Teléfono inválido o faltante' })
     }
     if (isPlaceholder(raw)) {
-      return res.json({ registered: false })
+      return res.json({
+        registered: false,
+        userExists: false,
+        onboardingComplete: false,
+      })
     }
     const phone = sanitizePhone(raw)
     if (!phone) {
@@ -187,11 +192,85 @@ export async function getUserContext(req: Request, res: Response) {
     }
 
     const user = await userService.findByPhone(phone)
-    const registered = !!(user?.onboardingComplete)
-    return res.json({ registered })
+    const userExists = !!user
+    const onboardingComplete = !!(user?.onboardingComplete)
+    /** Misma semántica que antes del campo extra: solo “listo para Seguimiento” si onboarding cerró en DB. */
+    const registered = onboardingComplete
+    return res.json({ registered, userExists, onboardingComplete })
   } catch (error: any) {
     console.error('Error getUserContext:', error)
     return res.status(500).json({ error: 'Error al obtener contexto del usuario' })
+  }
+}
+
+/**
+ * POST /api/bot/users/:phone/onboarding/complete
+ * Marca onboarding completo en DB (misma X-API-Key que GET context).
+ * Último nodo del flow Registro en BuilderBot: llamar acá cuando el copy diga “onboarding terminado”;
+ * sin esto, GET /context sigue con registered=false aunque WhatsApp muestre mensaje de cierre.
+ *
+ * Body opcional: { "fillDefaults": true } (default true) — rellena campos nulos con valores neutros
+ * para n8n/dashboard (baselines 5, restricciones "ninguna", etc.). No inventa nombre/edad/peso/altura.
+ */
+export async function postCompleteOnboarding(req: Request, res: Response) {
+  try {
+    const raw = decodePhonePathSegment(req.params.phone || '')
+    if (!raw) {
+      return res.status(400).json({ error: 'Teléfono inválido o faltante' })
+    }
+    if (isPlaceholder(raw)) {
+      return res.status(400).json({ error: 'Placeholder de teléfono no válido' })
+    }
+    const phone = sanitizePhone(raw)
+    if (!phone) {
+      return res.status(400).json({ error: 'Teléfono inválido o faltante' })
+    }
+    if (!isValidPhonePathSegment(phone)) {
+      return res.status(400).json({
+        error: 'En la URL debe ir el número real, solo dígitos.',
+        received: phone,
+      })
+    }
+
+    const user = await userService.findByPhone(phone)
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' })
+    }
+
+    if (user.onboardingComplete) {
+      return res.json({ success: true, onboardingComplete: true, alreadyComplete: true })
+    }
+
+    if (!user.name || user.name === 'pendiente') {
+      return res.status(400).json({
+        error:
+          'Nombre aún pendiente en Pulze. Pasá las respuestas por el webhook hasta tener nombre, o actualizá el usuario antes de cerrar.',
+      })
+    }
+
+    const fillDefaults = (req.body as { fillDefaults?: boolean } | undefined)?.fillDefaults !== false
+
+    const patch: Prisma.UserUpdateInput = { onboardingComplete: true }
+
+    if (fillDefaults) {
+      if (!user.goal || user.goal === 'pendiente') patch.goal = 'bienestar'
+      if (user.restrictions == null || user.restrictions === '') patch.restrictions = 'ninguna'
+      if (user.dietaryRestriction == null || user.dietaryRestriction === '') {
+        patch.dietaryRestriction = 'ninguna'
+      }
+      if (user.activityLevel == null || user.activityLevel === '') patch.activityLevel = 'moderado'
+      if (user.mealsPerDay == null) patch.mealsPerDay = 3
+      if (user.proteinEnough == null || user.proteinEnough === '') patch.proteinEnough = 'no_sé'
+      if (user.baselineSleep == null) patch.baselineSleep = 5
+      if (user.baselineEnergy == null) patch.baselineEnergy = 5
+      if (user.baselineMood == null) patch.baselineMood = 5
+    }
+
+    await userService.update(user.id, patch)
+    return res.json({ success: true, onboardingComplete: true })
+  } catch (error: any) {
+    console.error('Error postCompleteOnboarding:', error)
+    return res.status(500).json({ error: 'Error al completar onboarding' })
   }
 }
 

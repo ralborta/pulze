@@ -5,6 +5,7 @@ import {
   getBotHealth,
   getUserContext,
   getCoachingContext,
+  postCompleteOnboarding,
   postOutboundMessage,
 } from '../controllers/bot.controller'
 
@@ -33,6 +34,12 @@ router.get('/users/:phone/context', requireApiKey, getUserContext)
  * Bloques contextBlock / routineBlock / nutritionBlock para BuilderBot (misma auth que context).
  */
 router.get('/users/:phone/coaching-context', requireApiKey, getCoachingContext)
+
+/**
+ * POST /api/bot/users/:phone/onboarding/complete
+ * Cierra onboarding en DB (después del último paso del flow Registro en BuilderBot).
+ */
+router.post('/users/:phone/onboarding/complete', requireApiKey, postCompleteOnboarding)
 
 /**
  * POST /api/bot/messages/outbound
