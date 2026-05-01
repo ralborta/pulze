@@ -1,6 +1,24 @@
 import { prisma } from '../client'
 import type { User, Prisma } from '@prisma/client'
 
+/**
+ * Variantes para buscar el mismo WhatsApp guardado con o sin prefijo país (ej. AR 54).
+ * Ej.: 5491133788190 ↔ 91133788190
+ */
+function phoneLookupVariants(phone: string): string[] {
+  const s = phone.replace(/\D/g, '')
+  if (!s) return []
+  const v = new Set<string>()
+  v.add(s)
+  if (s.startsWith('54') && s.length >= 11) {
+    v.add(s.slice(2))
+  }
+  if (!s.startsWith('54') && s.startsWith('9') && s.length >= 10 && s.length <= 11) {
+    v.add(`54${s}`)
+  }
+  return [...v]
+}
+
 // Tipo extendido con relaciones incluidas
 export type UserWithRelations = User & {
   preferences?: any | null
@@ -34,11 +52,14 @@ export class UserService {
   }
 
   /**
-   * Buscar usuario por teléfono (WhatsApp)
+   * Buscar usuario por teléfono (WhatsApp).
+   * Prueba variantes con/sin prefijo 54 para coincidir con cómo vino el número al crear el usuario.
    */
   async findByPhone(phone: string): Promise<UserWithRelations | null> {
-    return prisma.user.findUnique({
-      where: { phone },
+    const variants = phoneLookupVariants(phone)
+    if (!variants.length) return null
+    return prisma.user.findFirst({
+      where: { phone: { in: variants } },
       include: {
         preferences: true,
         stats: true,
