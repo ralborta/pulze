@@ -3,6 +3,7 @@ import { userService, prisma, checkInService } from '@pulze/database'
 import { contextUpdater } from '../../services/ai'
 import { adaptRoutineForUser } from '../../services/ai/routine-adapter.service'
 import { parseCheckInMessage } from '../../utils/checkin-parser'
+import { isPlaceholder, sanitizePhone } from '../../utils/phone'
 import { builderBotClient } from '../../services/builderbot'
 
 /** Respuesta al canal: sin texto generado en PULZE; el copy lo arma BuilderBot. */
@@ -42,31 +43,6 @@ interface BuilderBotMessage {
   status?: 'sent' | 'delivered' | 'read' | 'failed'
   
   timestamp: string
-}
-
-function isPlaceholder(value: string): boolean {
-  return /^@\w+$|^\{\{\s*\w+\s*\}\}$|^\{\s*\w+\s*\}$/.test(value.trim())
-}
-
-/**
- * Normaliza identificador de contacto entrante (BuilderBot / WhatsApp):
- * - Toma el segmento antes de @ si viene como JID (`549...@s.whatsapp.net`, `...@newsletter`).
- * - Deja solo dígitos; si no hay dígitos útiles → vacío.
- * - Mínimo 8 dígitos (número razonable); máximo 20 para admitir LID/JIDs largos (el límite E.164
- *   de 15 dígitos no aplica a todos los formatos que envía WhatsApp Cloud API).
- */
-function sanitizePhone(value: string): string {
-  if (!value) return ''
-  const raw = String(value).trim()
-  if (!raw || isPlaceholder(raw)) return ''
-  const localPart = raw.split('@')[0] ?? raw
-  const digits = localPart.replace(/\D+/g, '')
-  if (digits.length < 8) return ''
-  if (digits.length > 20) {
-    console.warn('⚠️ from demasiado largo tras normalizar, se trunca a 20 dígitos:', digits.slice(0, 6) + '…')
-    return digits.slice(0, 20)
-  }
-  return digits
 }
 
 /** Extrae un teléfono desde cualquier formato (string, number, object con id/wa_id). */

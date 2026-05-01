@@ -1,15 +1,7 @@
 import { Request, Response } from 'express'
 import { userService, prisma } from '@pulze/database'
 import { builderBotClient } from '../../services/builderbot'
-
-function normalizePhone(phone: string): string {
-  if (!phone || typeof phone !== 'string') return ''
-  try {
-    return decodeURIComponent(phone).replace(/\s+/g, '').replace(/^\+/, '').trim()
-  } catch {
-    return phone.replace(/\s+/g, '').replace(/^\+/, '').trim()
-  }
-}
+import { decodePhonePathSegment, isPlaceholder, sanitizePhone } from '../../utils/phone'
 
 /**
  * GET /api/bot/health
@@ -24,13 +16,9 @@ export function getBotHealth(_req: Request, res: Response) {
 
 /**
  * GET /api/bot/users/:phone/context
- * Lectura de estado para ramificar flows en BuilderBot (requiere X-API-Key).
+ * Solo ramificación Inicio en BuilderBot: existe el teléfono en DB → { registered: boolean }.
+ * El contexto enriquecido para el coach (Seguimiento, prompts) va en GET …/coaching-context.
  */
-/** Placeholder que deja BuilderBot en la URL; el simulador HTTP no siempre lo reemplaza por el número. */
-function isBuilderBotFromPlaceholder(phone: string): boolean {
-  return /^@from$/i.test((phone || '').trim())
-}
-
 /** Solo dígitos (8–20) para teléfonos E.164 y JIDs/LID numéricos largos de WhatsApp. */
 function isValidPhonePathSegment(s: string): boolean {
   if (!s || /[<>{}@]/.test(s)) return false
@@ -43,22 +31,26 @@ function formatDate(d: Date): string {
 
 /**
  * GET /api/bot/users/:phone/coaching-context
- * Bloques de texto para prompts en BuilderBot (Seguimiento → Rutina / Plan). Requiere X-API-Key.
+ * Contexto completo para Seguimiento (bloques + flags). No confundir con GET …/context (solo registered).
  */
 export async function getCoachingContext(req: Request, res: Response) {
   try {
-    const phone = normalizePhone(req.params.phone || '')
-    if (!phone) {
+    const raw = decodePhonePathSegment(req.params.phone || '')
+    if (!raw) {
       return res.status(400).json({ error: 'Teléfono inválido o faltante' })
     }
-    if (isBuilderBotFromPlaceholder(phone)) {
+    if (isPlaceholder(raw)) {
       return res.json({
         exists: false,
-        phone: '@from',
+        phone: raw,
         contextBlock: '',
         routineBlock: '',
         nutritionBlock: '',
       })
+    }
+    const phone = sanitizePhone(raw)
+    if (!phone) {
+      return res.status(400).json({ error: 'Teléfono inválido o faltante' })
     }
     if (!isValidPhonePathSegment(phone)) {
       return res.status(400).json({
@@ -171,20 +163,17 @@ export async function getCoachingContext(req: Request, res: Response) {
 
 export async function getUserContext(req: Request, res: Response) {
   try {
-    const phone = normalizePhone(req.params.phone || '')
-    if (!phone) {
+    const raw = decodePhonePathSegment(req.params.phone || '')
+    if (!raw) {
       return res.status(400).json({ error: 'Teléfono inválido o faltante' })
     }
-    if (isBuilderBotFromPlaceholder(phone)) {
-      return res.json({
-        exists: false,
-        phone: '@from',
-        registered: false,
-        onboardingComplete: false,
-        nombre: '',
-        flow: 'onboarding',
-        botEnabled: true,
-      })
+    if (isPlaceholder(raw)) {
+      /** Prueba BuilderBot sin número resuelto: mismo cuerpo que "no existe". */
+      return res.json({ registered: false })
+    }
+    const phone = sanitizePhone(raw)
+    if (!phone) {
+      return res.status(400).json({ error: 'Teléfono inválido o faltante' })
     }
     if (!isValidPhonePathSegment(phone)) {
       return res.status(400).json({
@@ -195,39 +184,8 @@ export async function getUserContext(req: Request, res: Response) {
     }
 
     const user = await userService.findByPhone(phone)
-    if (!user) {
-      return res.json({
-        exists: false,
-        phone,
-        registered: false,
-        onboardingComplete: false,
-        nombre: '',
-        flow: 'onboarding',
-        botEnabled: true,
-      })
-    }
-
-    const nombre =
-      user.name && user.name !== 'pendiente' ? user.name : ''
-
-    let flow: string = 'menu'
-    if (!user.onboardingComplete) flow = 'onboarding'
-    else if (user.botEnabled === false) flow = 'operator'
-
-    return res.json({
-      exists: true,
-      userId: user.id,
-      phone: user.phone,
-      registered: user.onboardingComplete,
-      onboardingComplete: user.onboardingComplete,
-      nombre,
-      flow,
-      botEnabled: user.botEnabled,
-      goal: user.goal !== 'pendiente' ? user.goal : null,
-      currentStreak: user.currentStreak,
-      lastCheckInDate: user.lastCheckInDate,
-      reminderTime: user.preferences?.reminderTime ?? '08:00',
-    })
+    /** Solo existencia del teléfono en DB (ramificar Inicio en BuilderBot). */
+    return res.json({ registered: !!user })
   } catch (error: any) {
     console.error('Error getUserContext:', error)
     return res.status(500).json({ error: 'Error al obtener contexto del usuario' })
@@ -265,7 +223,7 @@ export async function postOutboundMessage(req: Request, res: Response) {
       resolvedPhone = user.phone
       uid = user.id
     } else {
-      const normalized = normalizePhone(phone!)
+      const normalized = sanitizePhone(String(phone).trim())
       const user = await userService.findByPhone(normalized)
       if (!user) return res.status(404).json({ error: 'Usuario no encontrado' })
       resolvedPhone = user.phone
