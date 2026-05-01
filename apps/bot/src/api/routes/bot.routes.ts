@@ -1,6 +1,5 @@
 import { Router } from 'express'
 import { handleBuilderBotWebhook } from '../controllers/webhook.controller'
-import { verifyBuilderBotWebhook } from '../../services/builderbot/webhook-verifier'
 import { requireApiKey } from '../middleware/apiKey'
 import {
   getBotHealth,
@@ -20,9 +19,8 @@ router.get('/health', getBotHealth)
 /**
  * POST /api/bot/inbound
  * Misma lógica que POST /api/webhooks/builderbot (BuilderBot → PULZE).
- * Verificación opcional: BUILDERBOT_WEBHOOK_SECRET / header x-webhook-secret.
  */
-router.post('/inbound', verifyBuilderBotWebhook, handleBuilderBotWebhook)
+router.post('/inbound', handleBuilderBotWebhook)
 
 /**
  * GET /api/bot/users/:phone/context

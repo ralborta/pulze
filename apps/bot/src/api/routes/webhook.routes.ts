@@ -1,6 +1,5 @@
 import { Router } from 'express'
 import { handleBuilderBotWebhook } from '../controllers/webhook.controller'
-import { verifyBuilderBotWebhook } from '../../services/builderbot/webhook-verifier'
 
 const router = Router()
 
@@ -8,11 +7,7 @@ const router = Router()
  * POST /api/webhooks/builderbot
  * Webhook para recibir mensajes de BuilderBot.app
  */
-router.post(
-  '/builderbot',
-  verifyBuilderBotWebhook, // Verificar firma
-  handleBuilderBotWebhook   // Procesar mensaje
-)
+router.post('/builderbot', handleBuilderBotWebhook)
 
 /**
  * GET /api/webhooks/builderbot/health

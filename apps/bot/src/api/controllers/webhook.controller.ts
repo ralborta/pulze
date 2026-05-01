@@ -62,6 +62,26 @@ function extractMessageText(value: any): string {
   return t != null ? String(t).trim() : ''
 }
 
+/** Ignora placeholders (@from, {{var}}); devuelve el primer teléfono válido entre candidatos. */
+function firstValidPhone(...candidates: any[]): string {
+  for (const c of candidates) {
+    if (c == null || c === '') continue
+    if (typeof c === 'string' && isPlaceholder(c)) continue
+    const p = extractPhone(c)
+    if (p) return p
+  }
+  return ''
+}
+
+/** Primer texto de mensaje útil; ignora @body / {{…}} sin resolver. */
+function firstValidMessage(...candidates: any[]): string {
+  for (const c of candidates) {
+    const t = extractMessageText(c)
+    if (t && !isPlaceholder(t)) return t
+  }
+  return ''
+}
+
 /**
  * Normaliza el body del webhook.
  * BuilderBot Cloud envía siempre: { eventName, data: { from, body, name, attachment, ... }, projectId }
@@ -69,6 +89,9 @@ function extractMessageText(value: any): string {
  * - data.from: teléfono del usuario
  * - data.body: texto del mensaje
  * - data.name: nombre de WhatsApp del usuario (opcional)
+ *
+ * A veces data.from / data.body llegan como literales "@from" / "@body" (plantilla sin sustituir);
+ * en ese caso usamos los mismos campos en la raíz del JSON si vienen resueltos.
  */
 function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: string } {
   const raw = body || {}
@@ -83,24 +106,36 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
   else if (eventNameRaw.includes('status')) event = 'status'
   else if (eventNameRaw.includes('media')) event = 'media'
 
-  // from: siempre en data.from (BuilderBot Cloud); fallback raíz
-  let from = extractPhone(data.from ?? raw.from ?? data.phone ?? data.sender ?? data.wa_id ?? '')
+  const from = firstValidPhone(
+    data.from,
+    raw.from,
+    data.phone,
+    data.sender,
+    data.wa_id,
+    raw.phone,
+    raw.sender
+  )
 
-  // body (mensaje del usuario): data.body es el campo estándar de BuilderBot Cloud
-  let message = extractMessageText(
-    data.body ?? data.message ?? data.keyword ?? data.answer ?? data.respMessage ??
-    data.text ?? data.content ?? raw.message ?? raw.body ?? ''
+  const message = firstValidMessage(
+    data.body,
+    data.message,
+    data.keyword,
+    data.answer,
+    data.respMessage,
+    data.text,
+    data.content,
+    data.value,
+    raw.message,
+    raw.body,
+    raw.value
   )
 
   // Nombre de WhatsApp del usuario (opcional, para personalizar si se quiere)
-  const whatsappName: string = typeof data.name === 'string' ? data.name.trim() : ''
-
-  // Placeholders no resueltos (@body, @from, {{body}}) → no son contenido real (solo ocurre en pruebas)
-  if (isPlaceholder(message)) message = ''
-  if (from && isPlaceholder(from)) {
-    console.warn('⚠️ from es placeholder (@from): no se puede identificar usuario')
-    from = ''
+  let whatsappName: string = typeof data.name === 'string' ? data.name.trim() : ''
+  if (!whatsappName && typeof raw.name === 'string' && !isPlaceholder(raw.name)) {
+    whatsappName = raw.name.trim()
   }
+  if (isPlaceholder(whatsappName)) whatsappName = ''
 
   return {
     ...raw,
