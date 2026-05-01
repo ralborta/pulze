@@ -26,7 +26,7 @@ router.post('/inbound', verifyBuilderBotWebhook, handleBuilderBotWebhook)
 
 /**
  * GET /api/bot/users/:phone/context
- * Estado del usuario para ramificar en BuilderBot. Requiere X-API-Key (N8N_API_KEY / API_KEY).
+ * Estado del usuario para ramificar en BuilderBot. Requiere X-API-Key (API_KEY / N8N_API_KEY, cualquiera configurada).
  */
 router.get('/users/:phone/context', requireApiKey, getUserContext)
 

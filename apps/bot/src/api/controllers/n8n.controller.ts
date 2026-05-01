@@ -323,6 +323,7 @@ export async function adaptRoutine(req: Request, res: Response) {
       content: result.content,
       planId: result.planId,
       planTitle: result.planTitle,
+      mediaAssets: result.mediaAssets ?? null,
     })
   } catch (error: any) {
     console.error('Error adaptRoutine:', error)

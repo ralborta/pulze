@@ -11,10 +11,19 @@ export interface AdaptRoutineInput {
   }
 }
 
+export interface AdaptRoutineMediaItem {
+  url: string
+  order: number
+  caption?: string
+  exerciseKey?: string
+}
+
 export interface AdaptRoutineResult {
   content: string
   planId?: string
   planTitle?: string
+  /** URLs públicas asociadas al plan (orden sugerido para WhatsApp). La IA elige el plan; no inventa enlaces. */
+  mediaAssets?: AdaptRoutineMediaItem[] | null
 }
 
 /**
@@ -27,7 +36,15 @@ export async function adaptRoutineForUser(input: AdaptRoutineInput): Promise<Ada
   const user = await userService.findById(userId)
   if (!user) return null
 
-  let plan: { id: string; title: string; content: string; category: string; difficulty: string; equipment: string[] } | null = null
+  let plan: {
+    id: string
+    title: string
+    content: string
+    category: string
+    difficulty: string
+    equipment: string[]
+    mediaAssets?: unknown
+  } | null = null
 
   if (planId) {
     plan = await prisma.standardPlan.findFirst({
@@ -61,9 +78,35 @@ export async function adaptRoutineForUser(input: AdaptRoutineInput): Promise<Ada
   lines.push('')
   lines.push(plan.content)
 
+  const rawMedia = plan.mediaAssets
+  let mediaAssets: AdaptRoutineMediaItem[] | null = null
+  if (rawMedia != null && Array.isArray(rawMedia)) {
+    const parsed: AdaptRoutineMediaItem[] = []
+    let i = 0
+    for (const item of rawMedia) {
+      if (!item || typeof item !== 'object') continue
+      const rec = item as Record<string, unknown>
+      const url = typeof rec.url === 'string' ? rec.url.trim() : ''
+      if (!url || !/^https:\/\//i.test(url)) continue
+      const caption = typeof rec.caption === 'string' ? rec.caption.trim() : undefined
+      const exerciseKey = typeof rec.exerciseKey === 'string' ? rec.exerciseKey.trim() : undefined
+      const order = typeof rec.order === 'number' && !Number.isNaN(rec.order) ? rec.order : i
+      const row: AdaptRoutineMediaItem = { url, order }
+      if (caption) row.caption = caption
+      if (exerciseKey) row.exerciseKey = exerciseKey
+      parsed.push(row)
+      i++
+    }
+    if (parsed.length) {
+      parsed.sort((a, b) => a.order - b.order)
+      mediaAssets = parsed
+    }
+  }
+
   return {
     content: lines.filter(Boolean).join('\n'),
     planId: plan.id,
     planTitle: plan.title,
+    mediaAssets,
   }
 }

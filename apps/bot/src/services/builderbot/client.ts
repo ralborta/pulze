@@ -112,16 +112,35 @@ export class BuilderBotClient {
     imageUrl: string
     caption?: string
   }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    if (!this.canSend()) {
+      return {
+        success: false,
+        error: 'BuilderBot API no configurada (BUILDERBOT_API_URL / KEY / BOT_ID).',
+      }
+    }
     try {
-      const response = await this.client.post(this.getMessagesPath(), {
-        phone: params.phone,
-        message: params.message,
-        media: {
-          url: params.imageUrl,
-          type: 'image',
-          caption: params.caption,
-        },
-      })
+      const path = this.getMessagesPath()
+      const number = params.phone.replace(/^\+/, '').trim()
+      const caption = (params.caption ?? params.message ?? '').trim() || '\u200B'
+
+      const body =
+        path === '/messages'
+          ? {
+              number,
+              message: caption,
+              media: { url: params.imageUrl, type: 'image' as const },
+            }
+          : {
+              phone: params.phone,
+              message: params.message,
+              media: {
+                url: params.imageUrl,
+                type: 'image',
+                caption: params.caption,
+              },
+            }
+
+      const response = await this.client.post(path, body)
 
       return {
         success: true,

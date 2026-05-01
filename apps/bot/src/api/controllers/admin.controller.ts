@@ -2,6 +2,38 @@ import { Response } from 'express'
 import { userService, checkInService, contentService, prisma } from '@pulze/database'
 import { AuthRequest } from '../middleware/auth'
 
+/** Imagen/vídeo asociado a un plan estándar (URL pública HTTPS). */
+export type StandardPlanMediaItem = {
+  url: string
+  order: number
+  caption?: string
+  exerciseKey?: string
+}
+
+function normalizeStandardPlanMediaAssets(input: unknown): StandardPlanMediaItem[] | null {
+  if (input == null) return null
+  if (!Array.isArray(input)) return null
+  const out: StandardPlanMediaItem[] = []
+  let idx = 0
+  for (const item of input) {
+    if (!item || typeof item !== 'object') continue
+    const rec = item as Record<string, unknown>
+    const url = typeof rec.url === 'string' ? rec.url.trim() : ''
+    if (!url || !/^https:\/\//i.test(url)) continue
+    const caption = typeof rec.caption === 'string' ? rec.caption.trim() : undefined
+    const exerciseKey = typeof rec.exerciseKey === 'string' ? rec.exerciseKey.trim() : undefined
+    const order = typeof rec.order === 'number' && !Number.isNaN(rec.order) ? rec.order : idx
+    const row: StandardPlanMediaItem = { url, order }
+    if (caption) row.caption = caption
+    if (exerciseKey) row.exerciseKey = exerciseKey
+    out.push(row)
+    idx++
+  }
+  if (!out.length) return null
+  out.sort((a, b) => a.order - b.order)
+  return out
+}
+
 /**
  * GET /api/admin/users
  * Listar todos los usuarios (con filtros)
@@ -472,13 +504,16 @@ export async function getStandardPlans(req: AuthRequest, res: Response) {
  */
 export async function createStandardPlan(req: AuthRequest, res: Response) {
   try {
-    const { title, description, content, category, difficulty, equipment, duration, tags, sortOrder } = req.body
+    const { title, description, content, category, difficulty, equipment, duration, tags, sortOrder, mediaAssets } =
+      req.body
 
     if (!title || !content || !category || !difficulty) {
       return res.status(400).json({
         error: 'Campos requeridos: title, content, category, difficulty',
       })
     }
+
+    const media = normalizeStandardPlanMediaAssets(mediaAssets)
 
     const plan = await prisma.standardPlan.create({
       data: {
@@ -491,6 +526,7 @@ export async function createStandardPlan(req: AuthRequest, res: Response) {
         duration: duration || null,
         tags: Array.isArray(tags) ? tags : [],
         sortOrder: sortOrder ?? 0,
+        mediaAssets: media ?? undefined,
       },
     })
 
@@ -508,7 +544,11 @@ export async function createStandardPlan(req: AuthRequest, res: Response) {
 export async function updateStandardPlan(req: AuthRequest, res: Response) {
   try {
     const { id } = req.params
-    const { title, description, content, category, difficulty, equipment, duration, tags, sortOrder, isActive } = req.body
+    const { title, description, content, category, difficulty, equipment, duration, tags, sortOrder, isActive, mediaAssets } =
+      req.body
+
+    const mediaPatch =
+      mediaAssets === undefined ? {} : { mediaAssets: normalizeStandardPlanMediaAssets(mediaAssets) }
 
     const plan = await prisma.standardPlan.update({
       where: { id },
@@ -523,6 +563,7 @@ export async function updateStandardPlan(req: AuthRequest, res: Response) {
         ...(Array.isArray(tags) && { tags }),
         ...(sortOrder !== undefined && { sortOrder }),
         ...(isActive !== undefined && { isActive }),
+        ...mediaPatch,
       },
     })
 

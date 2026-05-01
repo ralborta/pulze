@@ -402,7 +402,7 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
 
   let response = BB_REPLY
   if (looksLikeCheckIn) {
-    response = await handleCheckIn(user.id, text, entities)
+    response = await handleCheckIn(user.id, text, entities, phone)
   } else if (looksLikeNutrition) {
     await handleNutritionQuery(user, text, entities)
   } else if (looksLikeTraining) {
@@ -588,7 +588,8 @@ async function handleOnboarding(
 async function handleCheckIn(
   userId: string,
   message: string,
-  _entities?: Record<string, any>
+  _entities?: Record<string, any>,
+  fromPhone?: string
 ): Promise<string> {
   const parsed = parseCheckInMessage(message)
 
@@ -614,6 +615,10 @@ async function handleCheckIn(
   await userService.updateStreak(userId, streak)
 
   let note = `Check-in OK · racha ${streak}d · S${parsed.sleep} E${parsed.energy} · ${parsed.mood}`
+  let routineMedia:
+    | { url: string; caption?: string; order: number; exerciseKey?: string }[]
+    | null
+    | undefined
   if (parsed.willTrain) {
     const routineResult = await adaptRoutineForUser({
       userId,
@@ -627,12 +632,37 @@ async function handleCheckIn(
     if (routineResult?.content) {
       note += `\n\nRutina (plan estándar):\n${routineResult.content}`
     }
+    routineMedia = routineResult?.mediaAssets
   }
 
   await prisma.checkIn.update({
     where: { id: checkIn.id },
     data: { aiResponse: note },
   })
+
+  const sendRoutineImages =
+    process.env.PULZE_ROUTINE_SEND_IMAGES === 'true' &&
+    fromPhone &&
+    routineMedia &&
+    routineMedia.length > 0
+
+  if (sendRoutineImages && builderBotClient.canSend()) {
+    const to = fromPhone.includes('+') ? fromPhone : `+${fromPhone}`
+    const assets = routineMedia!
+    for (const item of assets) {
+      const caption =
+        [item.caption, item.exerciseKey].filter(Boolean).join(' · ') || '\u200B'
+      const result = await builderBotClient.sendMessageWithImage({
+        phone: to,
+        message: caption,
+        imageUrl: item.url,
+        caption: item.caption,
+      })
+      if (!result.success) {
+        console.warn('⚠️ Envío de imagen de rutina falló:', result.error, item.url?.slice(0, 48))
+      }
+    }
+  }
 
   return BB_REPLY
 }

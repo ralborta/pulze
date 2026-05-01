@@ -26,6 +26,11 @@ export function getBotHealth(_req: Request, res: Response) {
  * GET /api/bot/users/:phone/context
  * Lectura de estado para ramificar flows en BuilderBot (requiere X-API-Key).
  */
+/** Placeholder que deja BuilderBot en la URL; el simulador HTTP no siempre lo reemplaza por el número. */
+function isBuilderBotFromPlaceholder(phone: string): boolean {
+  return /^@from$/i.test((phone || '').trim())
+}
+
 /** Solo dígitos (8–20) para teléfonos E.164 y JIDs/LID numéricos largos de WhatsApp. */
 function isValidPhonePathSegment(s: string): boolean {
   if (!s || /[<>{}@]/.test(s)) return false
@@ -45,6 +50,15 @@ export async function getCoachingContext(req: Request, res: Response) {
     const phone = normalizePhone(req.params.phone || '')
     if (!phone) {
       return res.status(400).json({ error: 'Teléfono inválido o faltante' })
+    }
+    if (isBuilderBotFromPlaceholder(phone)) {
+      return res.json({
+        exists: false,
+        phone: '@from',
+        contextBlock: '',
+        routineBlock: '',
+        nutritionBlock: '',
+      })
     }
     if (!isValidPhonePathSegment(phone)) {
       return res.status(400).json({
@@ -160,6 +174,17 @@ export async function getUserContext(req: Request, res: Response) {
     const phone = normalizePhone(req.params.phone || '')
     if (!phone) {
       return res.status(400).json({ error: 'Teléfono inválido o faltante' })
+    }
+    if (isBuilderBotFromPlaceholder(phone)) {
+      return res.json({
+        exists: false,
+        phone: '@from',
+        registered: false,
+        onboardingComplete: false,
+        nombre: '',
+        flow: 'onboarding',
+        botEnabled: true,
+      })
     }
     if (!isValidPhonePathSegment(phone)) {
       return res.status(400).json({

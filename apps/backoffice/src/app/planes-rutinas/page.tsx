@@ -11,8 +11,42 @@ import {
   X,
   Save,
   Loader2,
+  ImageIcon,
 } from 'lucide-react'
-import { api, type StandardPlan } from '@/lib/api'
+import { api, type StandardPlan, type StandardPlanMediaAsset } from '@/lib/api'
+
+function mediaAssetsToLines(assets: StandardPlan['mediaAssets']): string {
+  if (!assets || !Array.isArray(assets)) return ''
+  return assets
+    .slice()
+    .sort((a, b) => a.order - b.order)
+    .map((m) => {
+      const parts = [m.url, m.caption, m.exerciseKey].filter((x) => x != null && x !== '')
+      if (parts.length === 1) return m.url
+      return parts.join(' | ')
+    })
+    .join('\n')
+}
+
+function linesToMediaAssets(text: string): StandardPlanMediaAsset[] | null {
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
+  if (!lines.length) return null
+  const out: StandardPlanMediaAsset[] = []
+  let order = 0
+  for (const line of lines) {
+    const parts = line.split('|').map((p) => p.trim())
+    const url = parts[0] ?? ''
+    if (!url || !/^https:\/\//i.test(url)) continue
+    const caption = parts[1] || undefined
+    const exerciseKey = parts[2] || undefined
+    const row: StandardPlanMediaAsset = { url, order }
+    if (caption) row.caption = caption
+    if (exerciseKey) row.exerciseKey = exerciseKey
+    out.push(row)
+    order++
+  }
+  return out.length ? out : null
+}
 
 const CATEGORIES = ['Full body', 'Cardio', 'Piernas', 'Superior', 'Core', 'Estiramiento', 'Otro']
 const DIFFICULTIES = ['Principiante', 'Intermedio', 'Avanzado']
@@ -234,6 +268,12 @@ function PlanCard({
             {t}
           </span>
         ))}
+        {Array.isArray(plan.mediaAssets) && plan.mediaAssets.length > 0 && (
+          <span className="text-xs px-2 py-1 bg-violet-500/15 text-violet-300 rounded flex items-center gap-1 border border-violet-500/25">
+            <ImageIcon className="w-3 h-3" />
+            {plan.mediaAssets.length} media
+          </span>
+        )}
       </div>
       <p className="text-ellipsis mt-3 text-sm text-gray-500 line-clamp-2">
         {plan.content}
@@ -260,11 +300,13 @@ function PlanFormModal({
   const [duration, setDuration] = useState(plan?.duration ?? '')
   const [tags, setTags] = useState(plan?.tags ?? [])
   const [tagsInput, setTagsInput] = useState(plan?.tags?.join(', ') ?? '')
+  const [mediaLines, setMediaLines] = useState(() => mediaAssetsToLines(plan?.mediaAssets))
 
   const queryClient = useQueryClient()
   const createMutation = useMutation({
-    mutationFn: () =>
-      api.standardPlans.create({
+    mutationFn: () => {
+      const mediaAssets = linesToMediaAssets(mediaLines)
+      return api.standardPlans.create({
         title,
         description: description || undefined,
         content,
@@ -273,12 +315,15 @@ function PlanFormModal({
         equipment,
         duration: duration || undefined,
         tags: tagsInput ? tagsInput.split(',').map((t) => t.trim()).filter(Boolean) : [],
-      }),
+        ...(mediaAssets != null ? { mediaAssets } : {}),
+      })
+    },
     onSuccess: () => onSuccess(),
   })
   const updateMutation = useMutation({
-    mutationFn: () =>
-      api.standardPlans.update(plan!.id, {
+    mutationFn: () => {
+      const mediaAssets = linesToMediaAssets(mediaLines)
+      return api.standardPlans.update(plan!.id, {
         title,
         description: description || undefined,
         content,
@@ -287,7 +332,9 @@ function PlanFormModal({
         equipment,
         duration: duration || undefined,
         tags: tagsInput ? tagsInput.split(',').map((t) => t.trim()).filter(Boolean) : [],
-      }),
+        mediaAssets: mediaAssets ?? null,
+      })
+    },
     onSuccess: () => onSuccess(),
   })
 
@@ -419,6 +466,27 @@ function PlanFormModal({
               className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 resize-none"
               placeholder="Ejercicios, series, reps. La IA adaptará según restricciones y nivel del usuario."
             />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1 flex items-center gap-2">
+              <ImageIcon className="w-4 h-4 text-violet-400" />
+              Imágenes / videos de la rutina (opcional)
+            </label>
+            <textarea
+              value={mediaLines}
+              onChange={(e) => setMediaLines(e.target.value)}
+              rows={4}
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 resize-none font-mono text-sm"
+              placeholder={
+                'Una URL HTTPS pública por línea (orden = orden de envío en WhatsApp).\n' +
+                'Opcional por línea: url | pie de foto | clave_ejercicio\n' +
+                'https://cdn.tudominio.com/planes/sentadilla.jpg | Sentadilla | squat'
+              }
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Subí archivos a tu CDN (S3, R2, Cloudinary) y pegá enlaces <code className="text-gray-400">https://</code>.
+              La IA elige el <strong>plan</strong> según el usuario; los enlaces vienen siempre de acá (no inventar URLs).
+            </p>
           </div>
 
           <div className="flex justify-end gap-3 pt-4">

@@ -85,6 +85,13 @@ export interface AnalyticsResponse {
   }
 }
 
+export type StandardPlanMediaAsset = {
+  url: string
+  order: number
+  caption?: string
+  exerciseKey?: string
+}
+
 export interface StandardPlan {
   id: string
   title: string
@@ -97,6 +104,7 @@ export interface StandardPlan {
   tags: string[]
   sortOrder: number
   isActive: boolean
+  mediaAssets?: StandardPlanMediaAsset[] | null
   createdAt: string
   updatedAt: string
 }
