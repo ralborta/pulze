@@ -35,6 +35,50 @@ function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
+/** Evita mostrar en coaching texto de bot / links pegados que quedaron mal en User o UserContext. */
+function looksLikeAssistantChatter(s: string): boolean {
+  const t = s.trim()
+  if (t.length < 28) return false
+  if (/https?:\/\//i.test(t)) return true
+  if (/¿c[oó]mo est[aá]s|¿en qu[eé] puedo ayudarte|si tienes alguna pregunta|te gustaría hablar/i.test(t)) {
+    return true
+  }
+  return false
+}
+
+function coachingDisplayName(raw: string | null | undefined): string {
+  if (!raw || raw === 'pendiente') return '(sin nombre)'
+  const t = raw.trim()
+  if (looksLikeAssistantChatter(t)) return '(sin nombre)'
+  return t.length > 80 ? `${t.slice(0, 80)}…` : t
+}
+
+function coachingDisplayGoal(raw: string | null | undefined): string {
+  if (!raw || raw === 'pendiente') return '—'
+  const t = raw.trim()
+  if (looksLikeAssistantChatter(t)) return '—'
+  return t.length > 120 ? `${t.slice(0, 120)}…` : t
+}
+
+function coachingDisplayRestriction(raw: string | null | undefined): string | null {
+  if (raw == null || raw === '' || raw === 'ninguna') return null
+  const t = raw.trim()
+  if (looksLikeAssistantChatter(t)) return null
+  return t.length > 200 ? `${t.slice(0, 200)}…` : t
+}
+
+/** aiSummary acumulativo: no exponer bloques con URLs/UTM/cleexs en el texto al asistente vía coaching-context. */
+function aiSummaryForCoachingDisplay(raw: string | null | undefined): string {
+  if (!raw?.trim()) return ''
+  const t = raw.trim()
+  if (/https?:\/\//i.test(t)) return ''
+  if (/\butm_(source|medium|campaign|content)=/i.test(t)) return ''
+  if (/vercel\.app|diagnosticid=/i.test(t)) return ''
+  const stripped = t.replace(/https?:\/\/[^\s]+/gi, ' ').replace(/\s+/g, ' ').trim()
+  if (stripped.length < 20) return ''
+  return stripped.slice(0, 1200)
+}
+
 /**
  * GET /api/bot/users/:phone/coaching-context
  * Contexto completo para Seguimiento (bloques + flags). No confundir con GET …/context (solo registered).
@@ -96,20 +140,21 @@ export async function getCoachingContext(req: Request, res: Response) {
       }),
     ])
 
-    const name = user.name && user.name !== 'pendiente' ? user.name : '(sin nombre)'
-    const goal = user.goal && user.goal !== 'pendiente' ? user.goal : '—'
+    const name = coachingDisplayName(user.name)
+    const goal = coachingDisplayGoal(user.goal)
 
     const linesGeneral: string[] = []
     linesGeneral.push(`Usuario: ${name} · tel ${user.phone}`)
     linesGeneral.push(`Objetivo declarado: ${goal}`)
-    if (user.restrictions && user.restrictions !== 'ninguna')
-      linesGeneral.push(`Restricciones físicas: ${user.restrictions}`)
-    if (user.dietaryRestriction && user.dietaryRestriction !== 'ninguna')
-      linesGeneral.push(`Restricción alimentaria: ${user.dietaryRestriction}`)
+    const phys = coachingDisplayRestriction(user.restrictions)
+    if (phys) linesGeneral.push(`Restricciones físicas: ${phys}`)
+    const diet = coachingDisplayRestriction(user.dietaryRestriction)
+    if (diet && user.dietaryRestriction !== 'ninguna') linesGeneral.push(`Restricción alimentaria: ${diet}`)
     linesGeneral.push(`Nivel actividad: ${user.activityLevel ?? '—'}`)
     linesGeneral.push(`Comidas/día: ${user.mealsPerDay ?? '—'} · Proteína suficiente: ${user.proteinEnough ?? '—'}`)
     linesGeneral.push(`Racha check-ins: ${user.currentStreak} · Último check-in: ${user.lastCheckInDate ? formatDate(user.lastCheckInDate) : '—'}`)
-    if (userCtx?.aiSummary) linesGeneral.push(`Resumen coach (IA): ${userCtx.aiSummary.slice(0, 1200)}`)
+    const summaryLine = aiSummaryForCoachingDisplay(userCtx?.aiSummary ?? null)
+    if (summaryLine) linesGeneral.push(`Resumen coach (IA): ${summaryLine}`)
 
     const linesRoutine: string[] = []
     linesRoutine.push(...linesGeneral)
@@ -155,7 +200,10 @@ export async function getCoachingContext(req: Request, res: Response) {
       userId: user.id,
       phone: user.phone,
       registered: user.onboardingComplete,
-      nombre: user.name && user.name !== 'pendiente' ? user.name : '',
+      nombre: (() => {
+        const n = coachingDisplayName(user.name)
+        return n === '(sin nombre)' ? '' : n
+      })(),
       flow: user.onboardingComplete ? (user.botEnabled === false ? 'operator' : 'menu') : 'onboarding',
       contextBlock,
       routineBlock,
