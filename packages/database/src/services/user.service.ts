@@ -13,6 +13,10 @@ function phoneLookupVariants(phone: string): string[] {
   if (s.startsWith('54') && s.length >= 11) {
     v.add(s.slice(2))
   }
+  /** AR: a veces viene 54 + código de área sin el 9 móvil (12 dígitos). Ej. 541133788190 → 5491133788190 */
+  if (s.startsWith('54') && s.length === 12 && s[2] !== '9') {
+    v.add(`549${s.slice(2)}`)
+  }
   if (!s.startsWith('54') && s.startsWith('9') && s.length >= 10 && s.length <= 11) {
     v.add(`54${s}`)
   }
