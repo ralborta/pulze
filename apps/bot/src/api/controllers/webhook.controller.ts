@@ -398,28 +398,36 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
 
   await contextUpdater.updateConversationSummary(user.id, text, response)
 
-  // 6. Actualizar stats
-  await prisma.userStats.update({
-    where: { userId: user.id },
-    data: {
-      messagesSent: { increment: 1 },
-    },
-  })
+  try {
+    await prisma.userStats.update({
+      where: { userId: user.id },
+      data: {
+        messagesSent: { increment: 1 },
+      },
+    })
+  } catch (err: any) {
+    console.error('⚠️ userStats.update (mensajes enviados) falló — se responde igual al webhook:', err?.message)
+  }
 
-  // 7. Registrar analytics
-  await prisma.analytics.create({
-    data: {
-      eventType: `message_${intent || 'general'}`,
-      userId: user.id,
-      metadata: { intent, entities },
-    },
-  })
+  try {
+    await prisma.analytics.create({
+      data: {
+        eventType: `message_${intent || 'general'}`,
+        userId: user.id,
+        metadata: { intent, entities },
+      },
+    })
+  } catch (err: any) {
+    console.error('⚠️ analytics.create falló — se responde igual al webhook:', err?.message)
+  }
 
-  // 8. Enviar por API de BuilderBot para que llegue a WhatsApp (no solo devolver en webhook)
-  await sendReplyViaBuilderBot(event.from, response)
-  res.json(
-    webhookPayload(response, { flow: 'menu', registered: true, nombre: user.name })
-  )
+  try {
+    await sendReplyViaBuilderBot(event.from, response)
+  } catch (err: any) {
+    console.error('⚠️ sendReplyViaBuilderBot falló:', err?.message)
+  }
+
+  res.json(webhookPayload(response, { flow: 'menu', registered: true, nombre: user.name }))
 }
 
 /**
