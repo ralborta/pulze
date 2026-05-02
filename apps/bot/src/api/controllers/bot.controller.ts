@@ -290,6 +290,7 @@ export async function getUserContext(req: Request, res: Response) {
     if (isPlaceholder(raw)) {
       return res.json({
         registered: false,
+        registered_s: 'false',
         userExists: false,
         onboardingComplete: false,
         phone: '',
@@ -314,7 +315,12 @@ export async function getUserContext(req: Request, res: Response) {
     const onboardingComplete = !!(user?.onboardingComplete)
     /** Misma semántica que antes del campo extra: solo “listo para Seguimiento” si onboarding cerró en DB. */
     const registered = onboardingComplete
-    return res.json({ registered, userExists, onboardingComplete, phone })
+    /**
+     * BuilderBot (reglas HTTP): muchos flows comparan texto; `includes`/`boolean` en JSON a veces no matchea y el flow termina sin mensaje.
+     * Usar `registered_s` en las reglas (p. ej. conditionRule registered_s, ===, true/false).
+     */
+    const registered_s = registered ? 'true' : 'false'
+    return res.json({ registered, registered_s, userExists, onboardingComplete, phone })
   } catch (error: any) {
     console.error('Error getUserContext:', error)
     return res.status(500).json({ error: 'Error al obtener contexto del usuario' })
