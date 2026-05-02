@@ -386,12 +386,17 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     return res.json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: false, nombre: nombreNuevo }))
   }
 
-  // Si no completó onboarding → limpiar historial, primero JSON, después instructions.
-  // clearConversation evita que el Plugin Assistant repita el mensaje de bienvenida.
+  // Si no completó onboarding → opcionalmente limpiar historial en BuilderBot (solo al primer mensaje
+  // de usuario en DB: si se llama en cada turno, Cloud puede quedar sin contexto y dejar de contestar).
   if (!user.onboardingComplete) {
-    await builderBotClient.clearConversation(event.from).catch((err) =>
-      console.warn('⚠️ clear-conversation falló (no crítico):', err?.message)
-    )
+    const priorUserMessages = await prisma.conversation.count({
+      where: { userId: user.id, role: 'user' },
+    })
+    if (priorUserMessages === 0) {
+      await builderBotClient.clearConversation(event.from).catch((err) =>
+        console.warn('⚠️ clear-conversation falló (no crítico):', err?.message)
+      )
+    }
     if (text) {
       await prisma.conversation.create({
         data: {
