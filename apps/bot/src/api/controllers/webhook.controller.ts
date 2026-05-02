@@ -372,9 +372,14 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
           lastActiveDate: new Date(),
         },
       })
+      /** Mismo pipeline que el resto del onboarding: si el primer mensaje ya trae nombre/datos, se guardan en DB. */
+      await handleOnboarding(created.id, text, intent)
     }
+    const fresh = created ? await userService.findByPhone(phone) : null
+    const nombreNuevo =
+      fresh?.name && fresh.name !== 'pendiente' ? fresh.name : null
     console.log('🆕 Usuario nuevo → flujo onboarding (copy en BuilderBot)')
-    return res.json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: false }))
+    return res.json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: false, nombre: nombreNuevo }))
   }
 
   // Si no completó onboarding → limpiar historial, primero JSON, después instructions.
@@ -572,7 +577,20 @@ async function handleOnboarding(
 
   // Paso 1: nombre
   if (user.name === 'pendiente') {
-    if (msg) await userService.update(userId, { name: msg })
+    if (msg) {
+      const trimmed = msg.trim()
+      const soloSaludo = /^(hola|buen[oa]s?(\s+d[ií]as?)?|hey|qu[eé] tal|buen[oa]s\s+tardes?|buen[oa]s\s+noches?)[\s!.¿?]*$/i.test(
+        trimmed
+      )
+      if (!soloSaludo) {
+        let nameCandidate = trimmed.split(/\r?\n/)[0].trim().slice(0, 120)
+        const mIntro = nameCandidate.match(
+          /^(?:me llamo|me dicen|soy|mi nombre es|nombre:?)\s+(.+)$/i
+        )
+        if (mIntro) nameCandidate = mIntro[1].trim()
+        if (nameCandidate) await userService.update(userId, { name: nameCandidate })
+      }
+    }
 
   // Paso 2: edad (Bloque 1 — Datos iniciales)
   } else if (u.age == null) {

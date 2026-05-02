@@ -53,6 +53,18 @@ function coachingDisplayName(raw: string | null | undefined): string {
   return t.length > 80 ? `${t.slice(0, 80)}…` : t
 }
 
+/**
+ * Nombre para saludar y para BuilderBot (`name` / `nombre` en JSON).
+ * Sin "(sin nombre)": string vacío si aún no hay nombre fiable en Pulze.
+ */
+function coachingNameForAssistant(raw: string | null | undefined): string {
+  if (raw == null || raw === 'pendiente') return ''
+  const t = raw.trim()
+  if (!t || isPlaceholder(t)) return ''
+  if (looksLikeAssistantChatter(t)) return ''
+  return t.length > 100 ? `${t.slice(0, 100)}…` : t
+}
+
 function coachingDisplayGoal(raw: string | null | undefined): string {
   if (!raw || raw === 'pendiente') return '—'
   const t = raw.trim()
@@ -90,8 +102,9 @@ type UserRowForCoaching = {
  */
 function registrationLinesForCoaching(user: UserRowForCoaching): string[] {
   const out: string[] = []
+  const nameSaludo = coachingNameForAssistant(user.name) || '—'
   out.push('--- Registro (entreno + plan alimenticio) — recordatorio; no reemplaza el historial del chat ---')
-  out.push(`Nombre: ${coachingDisplayName(user.name)} · Tel: ${user.phone}`)
+  out.push(`Nombre (Pulze / saludo): ${nameSaludo} · Tel: ${user.phone}`)
   out.push(`Objetivo: ${coachingDisplayGoal(user.goal)}`)
   if (user.age != null) out.push(`Edad: ${user.age}`)
   if (user.sex) out.push(`Sexo: ${user.sex}`)
@@ -127,6 +140,9 @@ function aiSummaryForCoachingDisplay(raw: string | null | undefined): string {
  * GET /api/bot/users/:phone/coaching-context
  * Contexto para retomar otro día (Seguimiento): registro en DB + breve resumen de hábitos.
  * El hilo conversacional reciente lo mantiene BuilderBot; aquí no va el transcript.
+ *
+ * Campos para BuilderBot: `name` y `nombre` (mismo valor) = nombre en Pulze para saludar;
+ * mapear en el nodo HTTP con messageMapping, p. ej. `2\\n{phone}\\n{name}\\n...` para rellenar `{name}` en el flow.
  */
 export async function getCoachingContext(req: Request, res: Response) {
   try {
@@ -138,6 +154,8 @@ export async function getCoachingContext(req: Request, res: Response) {
       return res.json({
         exists: false,
         phone: raw,
+        name: '',
+        nombre: '',
         contextBlock: '',
         routineBlock: '',
         nutritionBlock: '',
@@ -160,6 +178,8 @@ export async function getCoachingContext(req: Request, res: Response) {
       return res.json({
         exists: false,
         phone,
+        name: '',
+        nombre: '',
         contextBlock: '',
         routineBlock: '',
         nutritionBlock: '',
@@ -238,15 +258,16 @@ export async function getCoachingContext(req: Request, res: Response) {
     const routineBlock = linesRoutine.join('\n')
     const nutritionBlock = linesNutrition.join('\n')
 
+    /** Mismo valor: `name` para variables tipo {name} en BuilderBot; `nombre` por compatibilidad. */
+    const name = coachingNameForAssistant(user.name)
+
     return res.json({
       exists: true,
       userId: user.id,
       phone: user.phone,
       registered: user.onboardingComplete,
-      nombre: (() => {
-        const n = coachingDisplayName(user.name)
-        return n === '(sin nombre)' ? '' : n
-      })(),
+      name,
+      nombre: name,
       flow: user.onboardingComplete ? (user.botEnabled === false ? 'operator' : 'menu') : 'onboarding',
       coachingPurpose:
         'Usar al retomar otro día. El historial del hilo lo tiene BuilderBot. Aquí: datos de registro (gym/alimentación) y guía breve de hábitos; saludá y preguntá cómo sigue (sin recontar charlas largas).',
