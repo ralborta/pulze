@@ -6,6 +6,7 @@ import {
   getUserContext,
   getCoachingContext,
   postCompleteOnboarding,
+  patchUserProfile,
   postOutboundMessage,
 } from '../controllers/bot.controller'
 
@@ -34,6 +35,12 @@ router.get('/users/:phone/context', requireApiKey, getUserContext)
  * Bloques contextBlock / routineBlock / nutritionBlock para BuilderBot (misma auth que context).
  */
 router.get('/users/:phone/coaching-context', requireApiKey, getCoachingContext)
+
+/**
+ * PATCH /api/bot/users/:phone/profile
+ * Campos de onboarding / perfil (parcial). Misma auth que context.
+ */
+router.patch('/users/:phone/profile', requireApiKey, patchUserProfile)
 
 /**
  * POST /api/bot/users/:phone/onboarding/complete

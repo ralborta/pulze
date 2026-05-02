@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
-import type { Prisma } from '@prisma/client'
+import type { Prisma, User } from '@prisma/client'
+import { z } from 'zod'
 import { userService, prisma } from '@pulze/database'
 import { builderBotClient } from '../../services/builderbot'
 import { decodePhonePathSegment, isPlaceholder, sanitizePhone } from '../../utils/phone'
@@ -124,6 +125,57 @@ function registrationLinesForCoaching(user: UserRowForCoaching): string[] {
   return out
 }
 
+/**
+ * Snapshot JSON desde fila User (+ flags) para BuilderBot: variables y prompts sin parsear `contextBlock`.
+ */
+function coachingProfileFromUser(user: User) {
+  const nameAssistant = coachingNameForAssistant(user.name)
+  return {
+    name: nameAssistant,
+    nombre: nameAssistant,
+    nameStored: user.name === 'pendiente' ? null : user.name,
+    phone: user.phone,
+    email: user.email ?? null,
+    goal: !user.goal || user.goal === 'pendiente' ? null : user.goal,
+    age: user.age,
+    sex: user.sex ?? null,
+    heightCm: user.heightCm,
+    weightKg: user.weightKg,
+    bodyData: user.bodyData ?? null,
+    activityLevel: user.activityLevel ?? null,
+    restrictions: user.restrictions ?? null,
+    mealsPerDay: user.mealsPerDay,
+    proteinEnough: user.proteinEnough ?? null,
+    dietaryRestriction: user.dietaryRestriction ?? null,
+    baselineSleep: user.baselineSleep,
+    baselineEnergy: user.baselineEnergy,
+    baselineMood: user.baselineMood,
+    onboardingComplete: user.onboardingComplete,
+    botEnabled: user.botEnabled,
+  }
+}
+
+const userProfilePatchSchema = z
+  .object({
+    name: z.string().min(1).max(120),
+    email: z.union([z.string().email().max(200), z.literal('')]).optional(),
+    goal: z.string().min(1).max(200).optional(),
+    age: z.number().int().min(10).max(120).optional(),
+    sex: z.string().max(40).optional(),
+    heightCm: z.number().int().min(100).max(250).optional(),
+    weightKg: z.number().min(30).max(300).optional(),
+    bodyData: z.string().max(500).optional(),
+    activityLevel: z.string().max(80).optional(),
+    restrictions: z.string().max(500).optional(),
+    mealsPerDay: z.number().int().min(1).max(10).optional(),
+    proteinEnough: z.string().max(40).optional(),
+    dietaryRestriction: z.string().max(200).optional(),
+    baselineSleep: z.number().int().min(1).max(10).optional(),
+    baselineEnergy: z.number().int().min(1).max(10).optional(),
+    baselineMood: z.number().int().min(1).max(10).optional(),
+  })
+  .strict()
+
 /** aiSummary acumulativo: no exponer bloques con URLs/UTM/cleexs en el texto al asistente vía coaching-context. */
 function aiSummaryForCoachingDisplay(raw: string | null | undefined): string {
   if (!raw?.trim()) return ''
@@ -142,7 +194,10 @@ function aiSummaryForCoachingDisplay(raw: string | null | undefined): string {
  * El hilo conversacional reciente lo mantiene BuilderBot; aquí no va el transcript.
  *
  * Campos para BuilderBot: `name` y `nombre` (mismo valor) = nombre en Pulze para saludar;
- * mapear en el nodo HTTP con messageMapping, p. ej. `2\\n{phone}\\n{name}\\n...` para rellenar `{name}` en el flow.
+ * `profile` = objeto con columnas User (mismo query que alimenta los bloques de texto);
+ * `nutritionRecent` / `trainingRecent` = últimos registros para nutrición y gym.
+ * Si `profile.name` está vacío pero el registro en BuilderBot parece completo, sincronizar con
+ * PATCH /api/bot/users/:phone/profile desde cada paso del flow Registro.
  */
 export async function getCoachingContext(req: Request, res: Response) {
   try {
@@ -156,6 +211,9 @@ export async function getCoachingContext(req: Request, res: Response) {
         phone: raw,
         name: '',
         nombre: '',
+        profile: null,
+        nutritionRecent: [],
+        trainingRecent: [],
         contextBlock: '',
         routineBlock: '',
         nutritionBlock: '',
@@ -180,6 +238,9 @@ export async function getCoachingContext(req: Request, res: Response) {
         phone,
         name: '',
         nombre: '',
+        profile: null,
+        nutritionRecent: [],
+        trainingRecent: [],
         contextBlock: '',
         routineBlock: '',
         nutritionBlock: '',
@@ -196,12 +257,12 @@ export async function getCoachingContext(req: Request, res: Response) {
       prisma.trainingLog.findMany({
         where: { userId: user.id },
         orderBy: { timestamp: 'desc' },
-        take: 2,
+        take: 5,
       }),
       prisma.nutritionLog.findMany({
         where: { userId: user.id },
         orderBy: { timestamp: 'desc' },
-        take: 3,
+        take: 8,
       }),
     ])
 
@@ -261,6 +322,28 @@ export async function getCoachingContext(req: Request, res: Response) {
     /** Mismo valor: `name` para variables tipo {name} en BuilderBot; `nombre` por compatibilidad. */
     const name = coachingNameForAssistant(user.name)
 
+    const nutritionRecent = recentNutrition.map((n) => ({
+      at: n.timestamp.toISOString(),
+      mealType: n.mealType,
+      description: n.description.length > 500 ? `${n.description.slice(0, 500)}…` : n.description,
+      userQuery: n.userQuery
+        ? n.userQuery.length > 300
+          ? `${n.userQuery.slice(0, 300)}…`
+          : n.userQuery
+        : null,
+    }))
+
+    const trainingRecent = recentTraining.map((t) => ({
+      at: t.timestamp.toISOString(),
+      exerciseType: t.exerciseType,
+      duration: t.duration,
+      intensity: t.intensity,
+      howFelt: t.howFelt,
+      notes:
+        t.notes && t.notes.length > 400 ? `${t.notes.slice(0, 400)}…` : t.notes ?? null,
+      exercises: t.exercises,
+    }))
+
     return res.json({
       exists: true,
       userId: user.id,
@@ -268,6 +351,9 @@ export async function getCoachingContext(req: Request, res: Response) {
       registered: user.onboardingComplete,
       name,
       nombre: name,
+      profile: coachingProfileFromUser(user),
+      nutritionRecent,
+      trainingRecent,
       flow: user.onboardingComplete ? (user.botEnabled === false ? 'operator' : 'menu') : 'onboarding',
       coachingPurpose:
         'Usar al retomar otro día. El historial del hilo lo tiene BuilderBot. Aquí: datos de registro (gym/alimentación) y guía breve de hábitos; saludá y preguntá cómo sigue (sin recontar charlas largas).',
@@ -399,6 +485,75 @@ export async function postCompleteOnboarding(req: Request, res: Response) {
   } catch (error: any) {
     console.error('Error postCompleteOnboarding:', error)
     return res.status(500).json({ error: 'Error al completar onboarding' })
+  }
+}
+
+/**
+ * PATCH /api/bot/users/:phone/profile
+ * Actualización parcial de campos de onboarding / perfil en DB (X-API-Key).
+ * Usar desde BuilderBot después de cada captura del Registro si el flujo no pasa por el webhook de Pulze.
+ */
+export async function patchUserProfile(req: Request, res: Response) {
+  try {
+    const raw = decodePhonePathSegment(req.params.phone || '')
+    if (!raw) {
+      return res.status(400).json({ error: 'Teléfono inválido o faltante' })
+    }
+    if (isPlaceholder(raw)) {
+      return res.status(400).json({ error: 'Placeholder de teléfono no válido' })
+    }
+    const phone = sanitizePhone(raw)
+    if (!phone) {
+      return res.status(400).json({ error: 'Teléfono inválido o faltante' })
+    }
+    if (!isValidPhonePathSegment(phone)) {
+      return res.status(400).json({
+        error: 'En la URL debe ir el número real, solo dígitos.',
+        received: phone,
+      })
+    }
+
+    const parsed = userProfilePatchSchema.safeParse(req.body ?? {})
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Body inválido', details: parsed.error.flatten() })
+    }
+    const data = parsed.data
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ error: 'Enviá al menos un campo para actualizar' })
+    }
+
+    const user = await userService.findByPhone(phone)
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' })
+    }
+
+    const patch: Prisma.UserUpdateInput = {}
+    if (data.name !== undefined) patch.name = data.name.trim()
+    if (data.email !== undefined) patch.email = data.email === '' ? null : data.email
+    if (data.goal !== undefined) patch.goal = data.goal.trim()
+    if (data.age !== undefined) patch.age = data.age
+    if (data.sex !== undefined) patch.sex = data.sex.trim()
+    if (data.heightCm !== undefined) patch.heightCm = data.heightCm
+    if (data.weightKg !== undefined) patch.weightKg = data.weightKg
+    if (data.bodyData !== undefined) patch.bodyData = data.bodyData.trim() || null
+    if (data.activityLevel !== undefined) patch.activityLevel = data.activityLevel.trim()
+    if (data.restrictions !== undefined) patch.restrictions = data.restrictions.trim() || null
+    if (data.mealsPerDay !== undefined) patch.mealsPerDay = data.mealsPerDay
+    if (data.proteinEnough !== undefined) patch.proteinEnough = data.proteinEnough.trim()
+    if (data.dietaryRestriction !== undefined) patch.dietaryRestriction = data.dietaryRestriction.trim()
+    if (data.baselineSleep !== undefined) patch.baselineSleep = data.baselineSleep
+    if (data.baselineEnergy !== undefined) patch.baselineEnergy = data.baselineEnergy
+    if (data.baselineMood !== undefined) patch.baselineMood = data.baselineMood
+
+    await userService.update(user.id, patch)
+    const fresh = await userService.findById(user.id)
+    return res.json({
+      success: true,
+      profile: fresh ? coachingProfileFromUser(fresh) : coachingProfileFromUser(user),
+    })
+  } catch (error: any) {
+    console.error('Error patchUserProfile:', error)
+    return res.status(500).json({ error: 'Error al actualizar perfil' })
   }
 }
 
