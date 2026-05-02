@@ -294,6 +294,8 @@ export async function getUserContext(req: Request, res: Response) {
         userExists: false,
         onboardingComplete: false,
         phone: '',
+        /** Para reglas HTTP en Inicio: `route === "registro"` | `=== "seguimiento"` (más estable que boolean). */
+        route: 'registro',
         /** Lo que llegó en el path (ej. "@from"): si ves esto, BuilderBot no sustituyó la variable en la URL. */
         receivedInPath: raw,
       })
@@ -320,7 +322,9 @@ export async function getUserContext(req: Request, res: Response) {
      * Usar `registered_s` en las reglas (p. ej. conditionRule registered_s, ===, true/false).
      */
     const registered_s = registered ? 'true' : 'false'
-    return res.json({ registered, registered_s, userExists, onboardingComplete, phone })
+    /** Despachador Inicio: regla HTTP `route` + `===` evita ambigüedad con tipos JSON. */
+    const route = registered ? 'seguimiento' : 'registro'
+    return res.json({ registered, registered_s, route, userExists, onboardingComplete, phone })
   } catch (error: any) {
     console.error('Error getUserContext:', error)
     return res.status(500).json({ error: 'Error al obtener contexto del usuario' })
