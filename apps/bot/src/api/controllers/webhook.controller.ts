@@ -97,16 +97,20 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
   const raw = body || {}
   const data = raw.data || {}
 
-  /** Señales internas (intent + value) sin projectId: no son mensaje de usuario; evitan falsos "message". */
+  // eventName puede ser "message.incoming", "message.outgoing", "message", etc.
+  const eventNameRaw: string = String(raw.eventName ?? raw.event ?? '').toLowerCase()
+  /**
+   * Señales internas (intent + value) sin projectId: no son mensaje de usuario.
+   * Si el cliente envía `eventName: message.incoming` (p. ej. HTTP desde BuilderBot hacia /inbound),
+   * no degradar a internal_builderbot: si no, nunca corre handleOnboarding ni se guarda la DB.
+   */
   const isInternalIntentSignal =
     raw &&
     typeof raw === 'object' &&
     raw.projectId == null &&
     raw.intent != null &&
-    Object.prototype.hasOwnProperty.call(raw, 'value')
-
-  // eventName puede ser "message.incoming", "message.outgoing", "message", etc.
-  const eventNameRaw: string = String(raw.eventName ?? raw.event ?? '').toLowerCase()
+    Object.prototype.hasOwnProperty.call(raw, 'value') &&
+    !eventNameRaw.includes('incoming')
   // Normalizar a los tipos que usa el switch: message | status | media
   let event = 'message'
   if (isInternalIntentSignal) event = 'internal_builderbot'
