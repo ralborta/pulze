@@ -13,9 +13,15 @@ import { patternAnalyzer } from './pattern-analyzer.service'
  * Se regenera cada N interacciones (umbral configurable)
  */
 export class ContextUpdater {
-  private readonly UPDATE_THRESHOLD = 50 // Regenerar resumen cada 50 mensajes
+  private readonly UPDATE_THRESHOLD = 50 // Regenerar resumen cada 50 mensajes (check-ins / memoria temática)
 
-  /** Evita que links, pegotes largos o basura de reenvíos entre en aiSummary (coaching-context). */
+  /**
+   * coaching-context es para retomar otro día: no acumulamos el chat aquí (eso lo lleva BuilderBot).
+   * Regeneramos un resumen corto desde DB/patrones solo cuando pasó este intervalo.
+   */
+  private readonly COACHING_SUMMARY_STALE_MS = 24 * 60 * 60 * 1000
+
+  /** Evita que links, pegotes largos o basura de reenvíos disparen refresco innecesario. */
   private shouldRecordMessageInSummary(text: string): boolean {
     const t = (text || '').trim()
     if (!t) return false
@@ -58,14 +64,8 @@ export class ContextUpdater {
       // Mantener solo últimos 30
       if (moodHistory.length > 30) moodHistory.shift()
 
-      // Contar interacciones desde emotionalMemory
-      const interactionCount = moodHistory.length
-
-      // Regenerar resumen si alcanzó el umbral
-      let aiSummary = context.aiSummary
-      if (interactionCount % this.UPDATE_THRESHOLD === 0) {
-        aiSummary = await this.generateAISummary(user)
-      }
+      // Retomar coaching: el resumen refleja patrones/check-ins, no el chat palabra por palabra
+      const aiSummary = await this.generateAISummary(user)
 
       // Guardar contexto actualizado
       await prisma.userContext.update({
@@ -73,7 +73,7 @@ export class ContextUpdater {
         data: {
           emotionalMemory: { ...emotionalMemory, moodHistory },
           aiSummary,
-          lastAISummaryUpdate: aiSummary !== context.aiSummary ? new Date() : undefined,
+          lastAISummaryUpdate: new Date(),
         },
       })
     } catch (error) {
@@ -82,14 +82,14 @@ export class ContextUpdater {
   }
 
   /**
-   * Actualizar resumen de conversación después de cada interacción.
-   * Se llama desde el webhook tras guardar mensaje usuario + respuesta asistente.
-   * El nuevo resumen se usa en el siguiente prompt (en lugar de todo el historial).
+   * Tras cada interacción en el webhook: no guardamos el texto del chat en aiSummary.
+   * Eso queda en el historial de BuilderBot. Aquí solo refrescamos, como mucho 1 vez por día,
+   * un snapshot corto (patrones check-in / stats) para GET …/coaching-context.
    */
   async updateConversationSummary(
     userId: string,
     userMessage: string,
-    assistantMessage: string
+    _assistantMessage: string
   ): Promise<void> {
     try {
       let context = await prisma.userContext.findUnique({
@@ -111,13 +111,33 @@ export class ContextUpdater {
         return
       }
 
-      const safeUser = userMessage.slice(0, 500)
-      // Sin OpenAI: el copy lo genera BuilderBot. Opcional: podés guardar último turno en texto plano.
-      const snippet = `${(context.aiSummary || '').slice(-3500)}\nU: ${safeUser}`
+      const last = context.lastAISummaryUpdate
+      const stale =
+        !context.aiSummary?.trim() ||
+        !last ||
+        Date.now() - new Date(last).getTime() > this.COACHING_SUMMARY_STALE_MS
+
+      if (!stale) return
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          preferences: true,
+          stats: true,
+          checkIns: {
+            orderBy: { timestamp: 'desc' },
+            take: 30,
+          },
+        },
+      })
+
+      if (!user) return
+
+      const aiSummary = await this.generateAISummary(user as UserWithRelations)
       await prisma.userContext.update({
         where: { userId },
         data: {
-          aiSummary: snippet.slice(-4000),
+          aiSummary,
           lastAISummaryUpdate: new Date(),
         },
       })

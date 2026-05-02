@@ -67,6 +67,50 @@ function coachingDisplayRestriction(raw: string | null | undefined): string | nu
   return t.length > 200 ? `${t.slice(0, 200)}…` : t
 }
 
+type UserRowForCoaching = {
+  name: string
+  phone: string
+  goal: string
+  age: number | null
+  sex: string | null
+  heightCm: number | null
+  weightKg: number | null
+  activityLevel: string | null
+  mealsPerDay: number | null
+  proteinEnough: string | null
+  dietaryRestriction: string | null
+  restrictions: string | null
+  baselineSleep: number | null
+  baselineEnergy: number | null
+  baselineMood: number | null
+}
+
+/**
+ * Snapshot de alta onboarding: gym / nutrición. No incluye el hilo de WhatsApp (eso lo tiene BuilderBot).
+ */
+function registrationLinesForCoaching(user: UserRowForCoaching): string[] {
+  const out: string[] = []
+  out.push('--- Registro (entreno + plan alimenticio) — recordatorio; no reemplaza el historial del chat ---')
+  out.push(`Nombre: ${coachingDisplayName(user.name)} · Tel: ${user.phone}`)
+  out.push(`Objetivo: ${coachingDisplayGoal(user.goal)}`)
+  if (user.age != null) out.push(`Edad: ${user.age}`)
+  if (user.sex) out.push(`Sexo: ${user.sex}`)
+  if (user.heightCm != null) out.push(`Altura: ${user.heightCm} cm`)
+  if (user.weightKg != null) out.push(`Peso: ${user.weightKg} kg`)
+  out.push(`Nivel actividad: ${user.activityLevel ?? '—'}`)
+  out.push(`Comidas/día: ${user.mealsPerDay ?? '—'} · Proteína suficiente: ${user.proteinEnough ?? '—'}`)
+  const diet = coachingDisplayRestriction(user.dietaryRestriction)
+  if (diet && user.dietaryRestriction !== 'ninguna') out.push(`Restricción alimentaria: ${diet}`)
+  const phys = coachingDisplayRestriction(user.restrictions)
+  if (phys) out.push(`Restricciones físicas: ${phys}`)
+  if (user.baselineSleep != null || user.baselineEnergy != null || user.baselineMood != null) {
+    out.push(
+      `Baseline inicial (sueño / energía / ánimo): ${user.baselineSleep ?? '—'} · ${user.baselineEnergy ?? '—'} · ${user.baselineMood ?? '—'}`
+    )
+  }
+  return out
+}
+
 /** aiSummary acumulativo: no exponer bloques con URLs/UTM/cleexs en el texto al asistente vía coaching-context. */
 function aiSummaryForCoachingDisplay(raw: string | null | undefined): string {
   if (!raw?.trim()) return ''
@@ -81,7 +125,8 @@ function aiSummaryForCoachingDisplay(raw: string | null | undefined): string {
 
 /**
  * GET /api/bot/users/:phone/coaching-context
- * Contexto completo para Seguimiento (bloques + flags). No confundir con GET …/context (solo registered).
+ * Contexto para retomar otro día (Seguimiento): registro en DB + breve resumen de hábitos.
+ * El hilo conversacional reciente lo mantiene BuilderBot; aquí no va el transcript.
  */
 export async function getCoachingContext(req: Request, res: Response) {
   try {
@@ -126,40 +171,36 @@ export async function getCoachingContext(req: Request, res: Response) {
       prisma.checkIn.findMany({
         where: { userId: user.id },
         orderBy: { timestamp: 'desc' },
-        take: 5,
+        take: 3,
       }),
       prisma.trainingLog.findMany({
         where: { userId: user.id },
         orderBy: { timestamp: 'desc' },
-        take: 3,
+        take: 2,
       }),
       prisma.nutritionLog.findMany({
         where: { userId: user.id },
         orderBy: { timestamp: 'desc' },
-        take: 5,
+        take: 3,
       }),
     ])
 
-    const name = coachingDisplayName(user.name)
-    const goal = coachingDisplayGoal(user.goal)
-
     const linesGeneral: string[] = []
-    linesGeneral.push(`Usuario: ${name} · tel ${user.phone}`)
-    linesGeneral.push(`Objetivo declarado: ${goal}`)
-    const phys = coachingDisplayRestriction(user.restrictions)
-    if (phys) linesGeneral.push(`Restricciones físicas: ${phys}`)
-    const diet = coachingDisplayRestriction(user.dietaryRestriction)
-    if (diet && user.dietaryRestriction !== 'ninguna') linesGeneral.push(`Restricción alimentaria: ${diet}`)
-    linesGeneral.push(`Nivel actividad: ${user.activityLevel ?? '—'}`)
-    linesGeneral.push(`Comidas/día: ${user.mealsPerDay ?? '—'} · Proteína suficiente: ${user.proteinEnough ?? '—'}`)
-    linesGeneral.push(`Racha check-ins: ${user.currentStreak} · Último check-in: ${user.lastCheckInDate ? formatDate(user.lastCheckInDate) : '—'}`)
+    linesGeneral.push(...registrationLinesForCoaching(user))
+    linesGeneral.push(
+      `Racha check-ins: ${user.currentStreak}d · Último check-in: ${user.lastCheckInDate ? formatDate(user.lastCheckInDate) : '—'}`
+    )
     const summaryLine = aiSummaryForCoachingDisplay(userCtx?.aiSummary ?? null)
-    if (summaryLine) linesGeneral.push(`Resumen coach (IA): ${summaryLine}`)
+    if (summaryLine) {
+      linesGeneral.push(`Resumen hábitos (patrones desde DB; no es la conversación del día): ${summaryLine}`)
+    }
 
     const linesRoutine: string[] = []
     linesRoutine.push(...linesGeneral)
     if (userCtx?.trainingMemory != null) {
-      linesRoutine.push(`Memoria entreno (JSON): ${JSON.stringify(userCtx.trainingMemory).slice(0, 1500)}`)
+      const raw = JSON.stringify(userCtx.trainingMemory)
+      if (raw.length > 2)
+        linesRoutine.push(`Memoria entreno (compacta): ${raw.slice(0, 400)}${raw.length > 400 ? '…' : ''}`)
     }
     if (recentCheckIns.length) {
       linesRoutine.push('Últimos check-ins:')
@@ -181,10 +222,12 @@ export async function getCoachingContext(req: Request, res: Response) {
     const linesNutrition: string[] = []
     linesNutrition.push(...linesGeneral)
     if (userCtx?.nutritionMemory != null) {
-      linesNutrition.push(`Memoria nutrición (JSON): ${JSON.stringify(userCtx.nutritionMemory).slice(0, 1500)}`)
+      const raw = JSON.stringify(userCtx.nutritionMemory)
+      if (raw.length > 2)
+        linesNutrition.push(`Memoria nutrición (compacta): ${raw.slice(0, 400)}${raw.length > 400 ? '…' : ''}`)
     }
     if (recentNutrition.length) {
-      linesNutrition.push('Últimas entradas de comida / consultas:')
+      linesNutrition.push('Últimas notas de comida / consultas:')
       for (const n of recentNutrition) {
         const head = `${formatDate(n.timestamp)} [${n.mealType}]: ${n.description.slice(0, 200)}`
         linesNutrition.push(n.userQuery ? `${head} · Pregunta: ${n.userQuery.slice(0, 120)}` : head)
@@ -205,6 +248,8 @@ export async function getCoachingContext(req: Request, res: Response) {
         return n === '(sin nombre)' ? '' : n
       })(),
       flow: user.onboardingComplete ? (user.botEnabled === false ? 'operator' : 'menu') : 'onboarding',
+      coachingPurpose:
+        'Usar al retomar otro día. El historial del hilo lo tiene BuilderBot. Aquí: datos de registro (gym/alimentación) y guía breve de hábitos; saludá y preguntá cómo sigue (sin recontar charlas largas).',
       contextBlock,
       routineBlock,
       nutritionBlock,

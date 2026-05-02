@@ -266,8 +266,8 @@ function normalizePhone(phone: string): string {
  */
 function webhookPayload(
   message: string | null,
-  opts: { flow: string; registered: boolean; nombre?: string | null }
-): { message: string; flow: string; registered: boolean; nombre: string } {
+  opts: { flow: string; registered: boolean; nombre?: string | null; hasUserText?: boolean }
+): { message: string; flow: string; registered: boolean; nombre: string; hasUserText: boolean } {
   const isPlaceholderName = (n: string | null | undefined) =>
     !n || n === 'pendiente' || /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(n)
   const nombre = opts.nombre && !isPlaceholderName(opts.nombre) ? opts.nombre : ''
@@ -276,6 +276,8 @@ function webhookPayload(
     flow: opts.flow,
     registered: opts.registered,
     nombre,
+    /** false cuando no hubo texto de usuario (p. ej. ping de BuilderBot). No usar `flow` para saltar de módulo en ese caso. */
+    hasUserText: opts.hasUserText !== false,
   }
 }
 
@@ -311,6 +313,37 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     // Sin teléfono (ej. prueba del panel de BuilderBot con @from sin resolver):
     console.warn('⚠️ Webhook sin "from" válido (posiblemente prueba de BuilderBot):', event.from)
     return res.status(200).json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: false, nombre: null }))
+  }
+
+  // Sin texto útil: no crear usuario, no tocar DB ni onboarding. Evita “avanzar” por webhooks vacíos
+  // o dobles disparos. En BuilderBot: solo ramificar por `flow` si `hasUserText === true`.
+  if (!text) {
+    let userSkip = await userService.findByPhone(phone)
+    if (!userSkip && event.from !== phone) {
+      userSkip = await userService.findByPhone(event.from)
+    }
+    if (userSkip?.botEnabled === false) {
+      return res
+        .status(200)
+        .json(webhookPayload(null, { flow: 'operator', registered: true, nombre: userSkip.name, hasUserText: false }))
+    }
+    if (!userSkip) {
+      return res.status(200).json(
+        webhookPayload(BB_REPLY, { flow: 'onboarding', registered: false, nombre: null, hasUserText: false })
+      )
+    }
+    if (!userSkip.onboardingComplete) {
+      const nombre =
+        userSkip.name && userSkip.name !== 'pendiente' ? userSkip.name : null
+      return res.status(200).json(
+        webhookPayload(BB_REPLY, { flow: 'onboarding', registered: true, nombre, hasUserText: false })
+      )
+    }
+    const nombreOk =
+      userSkip.name && userSkip.name !== 'pendiente' ? userSkip.name : null
+    return res.status(200).json(
+      webhookPayload(BB_REPLY, { flow: 'menu', registered: true, nombre: nombreOk, hasUserText: false })
+    )
   }
 
   // 1. Buscar o crear usuario (siempre por teléfono normalizado)
