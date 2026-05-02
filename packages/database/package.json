@@ -12,7 +12,8 @@
     "studio": "prisma studio",
     "generate": "prisma generate",
     "push": "prisma db push",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "delete-users": "tsx scripts/delete-users-by-phone.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.9.0"
