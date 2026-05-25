@@ -6,6 +6,7 @@ import {
   getUserContext,
   getCoachingContext,
   postCompleteOnboarding,
+  postRoutineReminder,
   patchUserProfile,
   postOutboundMessage,
 } from '../controllers/bot.controller'
@@ -47,6 +48,12 @@ router.patch('/users/:phone/profile', requireApiKey, patchUserProfile)
  * Cierra onboarding en DB (después del último paso del flow Registro en BuilderBot).
  */
 router.post('/users/:phone/onboarding/complete', requireApiKey, postCompleteOnboarding)
+
+/**
+ * POST /api/bot/users/:phone/routine-reminder
+ * Recordatorio: mensaje + imágenes del plan (BuilderBot flow de ejecución).
+ */
+router.post('/users/:phone/routine-reminder', requireApiKey, postRoutineReminder)
 
 /**
  * POST /api/bot/messages/outbound

@@ -7,6 +7,7 @@ import {
   buildCelebrationCopy,
   buildWeeklyReportCopy,
 } from '../../services/messages/proactive-copy.service'
+import { getArgentinaHour, getArgentinaStartOfToday } from '../../utils/argentina-time'
 
 /**
  * GET /api/n8n/users/pending-checkin
@@ -22,12 +23,10 @@ export async function getPendingCheckin(req: Request, res: Response) {
         return res.status(400).json({ error: 'hour debe ser 0-23' })
       }
     } else {
-      const now = new Date()
-      hour = now.getHours()
+      hour = getArgentinaHour()
     }
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const today = getArgentinaStartOfToday()
 
     const users = await prisma.user.findMany({
       where: {
@@ -383,5 +382,64 @@ export async function sendProactiveMessage(req: Request, res: Response) {
   } catch (error: any) {
     console.error('Error sendProactiveMessage:', error)
     return res.status(500).json({ error: 'Error al enviar mensaje proactivo' })
+  }
+}
+
+/**
+ * POST /api/n8n/admin/disable-junk-users
+ * Body: { dryRun?: boolean }  (default true)
+ * Marca como isActive:false + botEnabled:false a usuarios "basura":
+ *   - phone con '@' (newsletters, placeholders @from)
+ *   - phone con '{' (placeholders {from})
+ *   - phone que no sea solo dígitos (5-15)
+ *   - name '@body' / '{body}' / empieza con '_event_'
+ * No borra registros (preserva FK y historial).
+ */
+export async function disableJunkUsers(req: Request, res: Response) {
+  try {
+    const dryRun = req.body?.dryRun !== false
+
+    const junkCondition = {
+      AND: [
+        { isActive: true },
+        {
+          OR: [
+            { phone: { contains: '@' } },
+            { phone: { contains: '{' } },
+            { phone: { contains: '(' } },
+            { name: { equals: '@body' } },
+            { name: { equals: '{body}' } },
+            { name: { startsWith: '_event_' } },
+          ],
+        },
+      ],
+    }
+
+    const candidates = await prisma.user.findMany({
+      where: junkCondition,
+      select: { id: true, name: true, phone: true },
+    })
+
+    if (dryRun) {
+      return res.json({
+        dryRun: true,
+        wouldDisable: candidates.length,
+        users: candidates,
+      })
+    }
+
+    const result = await prisma.user.updateMany({
+      where: junkCondition,
+      data: { isActive: false, botEnabled: false },
+    })
+
+    return res.json({
+      dryRun: false,
+      disabled: result.count,
+      users: candidates,
+    })
+  } catch (error: any) {
+    console.error('Error disableJunkUsers:', error)
+    return res.status(500).json({ error: 'Error al desactivar usuarios basura' })
   }
 }

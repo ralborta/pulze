@@ -3,6 +3,7 @@ import type { Prisma, User } from '@prisma/client'
 import { z } from 'zod'
 import { userService, prisma } from '@pulze/database'
 import { builderBotClient } from '../../services/builderbot'
+import { sendRoutineToWhatsApp } from '../../services/messaging/send-routine-whatsapp'
 import { decodePhonePathSegment, isPlaceholder, sanitizePhone } from '../../utils/phone'
 
 /**
@@ -485,6 +486,97 @@ export async function postCompleteOnboarding(req: Request, res: Response) {
   } catch (error: any) {
     console.error('Error postCompleteOnboarding:', error)
     return res.status(500).json({ error: 'Error al completar onboarding' })
+  }
+}
+
+/**
+ * POST /api/bot/users/:phone/routine-reminder
+ * Recordatorio diario (BuilderBot al disparar flowToExecute): texto de rutina + imágenes del plan.
+ * Body opcional: { sendImages?: boolean (default true), introPrefix?: string }
+ */
+export async function postRoutineReminder(req: Request, res: Response) {
+  try {
+    const raw = decodePhonePathSegment(req.params.phone || '')
+    if (!raw) {
+      return res.status(400).json({ error: 'Teléfono inválido o faltante' })
+    }
+    if (isPlaceholder(raw)) {
+      return res.status(400).json({ error: 'Placeholder de teléfono no válido (usá @from en BuilderBot)' })
+    }
+    const phone = sanitizePhone(raw)
+    if (!phone) {
+      return res.status(400).json({ error: 'Teléfono inválido o faltante' })
+    }
+    if (!isValidPhonePathSegment(phone)) {
+      return res.status(400).json({
+        error: 'En la URL debe ir el número real, solo dígitos.',
+        received: phone,
+      })
+    }
+
+    const user = await userService.findByPhone(phone)
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' })
+    }
+    if (!user.onboardingComplete) {
+      return res.status(400).json({ error: 'Onboarding no completado' })
+    }
+
+    const body = (req.body ?? {}) as { sendImages?: boolean; introPrefix?: string }
+    const sendImages = body.sendImages !== false
+    const name = user.name && user.name !== 'pendiente' ? user.name : 'ahí'
+    const introPrefix =
+      typeof body.introPrefix === 'string' && body.introPrefix.trim()
+        ? body.introPrefix.trim()
+        : `¡Hola ${name}! Recordatorio de PULZE — rutina y movimiento:\n\n`
+
+    const delivery = await sendRoutineToWhatsApp({
+      phone,
+      userId: user.id,
+      sendImages,
+      introPrefix,
+      checkInData: { willTrain: true },
+    })
+
+    if (!delivery.ok) {
+      if (delivery.error === 'no_plan') {
+        return res.status(404).json({
+          error: 'No hay plan estándar activo. Cargá planes en el backoffice.',
+        })
+      }
+      if (delivery.error === 'builderbot_not_configured') {
+        return res.status(503).json({ error: 'BuilderBot API no configurada en el servidor' })
+      }
+      return res.status(502).json({
+        error: 'No se pudo enviar por WhatsApp',
+        detail: delivery.error,
+      })
+    }
+
+    await prisma.proactiveMessage.create({
+      data: {
+        userId: user.id,
+        messageType: 'routine_reminder',
+        content: delivery.content?.slice(0, 4000) ?? '',
+        status: 'sent',
+        sentAt: new Date(),
+        contextSnapshot: {
+          planId: delivery.planId,
+          planTitle: delivery.planTitle,
+          imagesSent: delivery.imagesSent,
+        },
+      },
+    })
+
+    return res.json({
+      success: true,
+      imagesSent: delivery.imagesSent,
+      planId: delivery.planId,
+      planTitle: delivery.planTitle,
+    })
+  } catch (error: any) {
+    console.error('Error postRoutineReminder:', error)
+    return res.status(500).json({ error: 'Error al enviar recordatorio de rutina' })
   }
 }
 

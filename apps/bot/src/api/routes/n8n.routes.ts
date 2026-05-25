@@ -12,6 +12,7 @@ import {
   generateWeeklyReport,
   adaptRoutine,
   sendProactiveMessage,
+  disableJunkUsers,
 } from '../controllers/n8n.controller'
 
 const router = Router()
@@ -33,5 +34,7 @@ router.post('/openai/generate-weekly-report', generateWeeklyReport)
 router.post('/openai/adapt-routine', adaptRoutine)
 
 router.post('/proactive-messages', sendProactiveMessage)
+
+router.post('/admin/disable-junk-users', disableJunkUsers)
 
 export default router

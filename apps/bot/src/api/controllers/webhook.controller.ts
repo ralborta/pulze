@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { userService, prisma, checkInService } from '@pulze/database'
 import { contextUpdater } from '../../services/ai'
 import { adaptRoutineForUser } from '../../services/ai/routine-adapter.service'
+import { sendRoutineToWhatsApp } from '../../services/messaging/send-routine-whatsapp'
 import { parseCheckInMessage } from '../../utils/checkin-parser'
 import { isPlaceholder, sanitizePhone } from '../../utils/phone'
 import { builderBotClient } from '../../services/builderbot'
@@ -722,10 +723,6 @@ async function handleCheckIn(
   await userService.updateStreak(userId, streak)
 
   let note = `Check-in OK · racha ${streak}d · S${parsed.sleep} E${parsed.energy} · ${parsed.mood}`
-  let routineMedia:
-    | { url: string; caption?: string; order: number; exerciseKey?: string }[]
-    | null
-    | undefined
   if (parsed.willTrain) {
     const routineResult = await adaptRoutineForUser({
       userId,
@@ -739,37 +736,33 @@ async function handleCheckIn(
     if (routineResult?.content) {
       note += `\n\nRutina (plan estándar):\n${routineResult.content}`
     }
-    routineMedia = routineResult?.mediaAssets
+    if (
+      process.env.PULZE_ROUTINE_SEND_IMAGES === 'true' &&
+      fromPhone &&
+      routineResult?.mediaAssets?.length
+    ) {
+      const delivery = await sendRoutineToWhatsApp({
+        phone: fromPhone,
+        userId,
+        sendImages: true,
+        skipText: true,
+        checkInData: {
+          sleep: parsed.sleep,
+          energy: parsed.energy,
+          mood: parsed.mood,
+          willTrain: parsed.willTrain,
+        },
+      })
+      if (!delivery.ok) {
+        console.warn('⚠️ Envío de imágenes de rutina falló:', delivery.error)
+      }
+    }
   }
 
   await prisma.checkIn.update({
     where: { id: checkIn.id },
     data: { aiResponse: note },
   })
-
-  const sendRoutineImages =
-    process.env.PULZE_ROUTINE_SEND_IMAGES === 'true' &&
-    fromPhone &&
-    routineMedia &&
-    routineMedia.length > 0
-
-  if (sendRoutineImages && builderBotClient.canSend()) {
-    const to = fromPhone.includes('+') ? fromPhone : `+${fromPhone}`
-    const assets = routineMedia!
-    for (const item of assets) {
-      const caption =
-        [item.caption, item.exerciseKey].filter(Boolean).join(' · ') || '\u200B'
-      const result = await builderBotClient.sendMessageWithImage({
-        phone: to,
-        message: caption,
-        imageUrl: item.url,
-        caption: item.caption,
-      })
-      if (!result.success) {
-        console.warn('⚠️ Envío de imagen de rutina falló:', result.error, item.url?.slice(0, 48))
-      }
-    }
-  }
 
   return BB_REPLY
 }

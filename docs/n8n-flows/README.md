@@ -21,6 +21,7 @@ Los archivos están en el repo; después del push a GitHub podés importarlos as
 
 | Archivo | Flujo | Trigger |
 |---------|--------|---------|
+| `00-PULZE-combined.json` | **Los 4 flujos en un solo workflow** (recomendado) | 8–22, 10:00, 18:00, lunes 9:00 |
 | `01-recordatorio-checkin.json` | Recordatorio de check-in | Cada hora 8–22 |
 | `02-reactivacion.json` | Reactivación (inactivos 2–7 días) | Diario 10:00 |
 | `03-celebracion.json` | Celebración (rachas 3,7,14,30) | Diario 18:00 |
