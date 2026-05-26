@@ -387,7 +387,7 @@ export async function sendProactiveMessage(req: Request, res: Response) {
 
 /**
  * POST /api/n8n/admin/disable-junk-users
- * Body: { dryRun?: boolean }  (default true)
+ * Body: { dryRun?: boolean, excludePhones?: string[] }  (default dryRun true)
  * Marca como isActive:false + botEnabled:false a usuarios "basura":
  *   - phone con '@' (newsletters, placeholders @from)
  *   - phone con '{' (placeholders {from})
@@ -398,10 +398,14 @@ export async function sendProactiveMessage(req: Request, res: Response) {
 export async function disableJunkUsers(req: Request, res: Response) {
   try {
     const dryRun = req.body?.dryRun !== false
+    const excludePhones = Array.isArray(req.body?.excludePhones)
+      ? req.body.excludePhones.filter((phone: unknown): phone is string => typeof phone === 'string')
+      : []
 
     const junkCondition = {
       AND: [
         { isActive: true },
+        ...(excludePhones.length > 0 ? [{ phone: { notIn: excludePhones } }] : []),
         {
           OR: [
             { phone: { contains: '@' } },
@@ -423,6 +427,7 @@ export async function disableJunkUsers(req: Request, res: Response) {
     if (dryRun) {
       return res.json({
         dryRun: true,
+        excludePhones,
         wouldDisable: candidates.length,
         users: candidates,
       })
@@ -435,6 +440,7 @@ export async function disableJunkUsers(req: Request, res: Response) {
 
     return res.json({
       dryRun: false,
+      excludePhones,
       disabled: result.count,
       users: candidates,
     })
