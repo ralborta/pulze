@@ -15,6 +15,7 @@ export function getBotHealth(_req: Request, res: Response) {
     status: 'ok',
     service: 'pulze-bot-api',
     timestamp: new Date().toISOString(),
+    whatsappOutbound: builderBotClient.getSendDiagnostics(),
   })
 }
 

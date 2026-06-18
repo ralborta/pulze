@@ -272,7 +272,15 @@ function normalizePhone(phone: string): string {
 function webhookPayload(
   message: string | null,
   opts: { flow: string; registered: boolean; nombre?: string | null; hasUserText?: boolean }
-): { message: string; flow: string; registered: boolean; nombre: string; hasUserText: boolean } {
+): {
+  message: string
+  flow: string
+  registered: boolean
+  registered_s: string
+  route: string
+  nombre: string
+  hasUserText: boolean
+} {
   const isPlaceholderName = (n: string | null | undefined) =>
     !n || n === 'pendiente' || /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(n)
   const nombre = opts.nombre && !isPlaceholderName(opts.nombre) ? opts.nombre : ''
@@ -280,6 +288,8 @@ function webhookPayload(
     message: message ?? '',
     flow: opts.flow,
     registered: opts.registered,
+    registered_s: opts.registered ? 'true' : 'false',
+    route: opts.flow === 'menu' || opts.flow === 'operator' ? 'seguimiento' : 'registro',
     nombre,
     /** false cuando no hubo texto de usuario (p. ej. ping de BuilderBot). No usar `flow` para saltar de módulo en ese caso. */
     hasUserText: opts.hasUserText !== false,

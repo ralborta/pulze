@@ -31,32 +31,91 @@ export class BuilderBotClient {
       console.warn('⚠️ BUILDERBOT_BOT_ID no configurado (necesario para identificar el bot)')
     }
 
-    const authHeaders = {
-      Authorization: `Bearer ${this.apiKey}`,
-      'Content-Type': 'application/json',
-    }
-
     this.client = axios.create({
       baseURL: `${this.baseURL}/v1`.replace(/\/v1\/v1$/, '/v1'),
-      headers: authHeaders,
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
       timeout: 10000,
     })
 
     this.messagesClient = axios.create({
       baseURL: `${this.messagesBaseURL}/v1`.replace(/\/v1\/v1$/, '/v1'),
-      headers: authHeaders,
+      headers: this.getMessagesAuthHeaders(),
       timeout: 10000,
     })
   }
 
+  private usesWaMessagesApi(): boolean {
+    return this.messagesBaseURL.includes('wa-api.builderbot.app')
+  }
+
+  /** wa-api: Authorization = token crudo (doc BuilderBot). Otras APIs: Bearer. */
+  private getMessagesAuthHeaders(): Record<string, string> {
+    if (this.usesWaMessagesApi()) {
+      return {
+        Authorization: this.apiKey,
+        'Content-Type': 'application/json',
+      }
+    }
+    return {
+      Authorization: `Bearer ${this.apiKey}`,
+      'Content-Type': 'application/json',
+    }
+  }
+
+  /** E.164 con + (requerido por wa-api.builderbot.app). */
+  private formatPhoneForWaApi(phone: string): string {
+    const digits = phone.replace(/\D/g, '')
+    return digits ? `+${digits}` : ''
+  }
+
+  private buildWaApiMessageBody(
+    phone: string,
+    message: string,
+    extra?: Record<string, unknown>
+  ): Record<string, unknown> {
+    const body: Record<string, unknown> = {
+      phone: this.formatPhoneForWaApi(phone),
+      message: message.trim(),
+    }
+    const device = process.env.BUILDERBOT_DEVICE_ID?.trim()
+    if (device) body.device = device
+    if (extra) Object.assign(body, extra)
+    return body
+  }
+
+  /** Diagnóstico sin exponer secretos (health / debug prod). */
+  getSendDiagnostics(): {
+    canSend: boolean
+    hasApiKey: boolean
+    hasBotId: boolean
+    messagesApiUrl: string
+    usesWaMessagesApi: boolean
+    hasDeviceId: boolean
+  } {
+    return {
+      canSend: this.canSend(),
+      hasApiKey: !!this.apiKey,
+      hasBotId: !!this.botId,
+      messagesApiUrl: this.messagesBaseURL,
+      usesWaMessagesApi: this.usesWaMessagesApi(),
+      hasDeviceId: !!process.env.BUILDERBOT_DEVICE_ID?.trim(),
+    }
+  }
+
   /** True si hay credenciales y URL de mensajes para enviar por WhatsApp. */
   canSend(): boolean {
-    return !!(this.messagesBaseURL && this.apiKey && this.botId)
+    if (!this.messagesBaseURL || !this.apiKey) return false
+    // wa-api solo exige API key; otras bases usan /bots/:id/...
+    if (this.usesWaMessagesApi()) return true
+    return !!this.botId
   }
 
   /** BuilderBot Cloud usa POST /v1/messages; otra API puede usar /bots/:id/messages/send */
   private getMessagesPath(): string {
-    if (this.messagesBaseURL.includes('wa-api.builderbot.app')) {
+    if (this.usesWaMessagesApi()) {
       return '/messages'
     }
     return this.botId ? `/bots/${this.botId}/messages/send` : '/messages/send'
@@ -90,8 +149,8 @@ export class BuilderBotClient {
     }
     try {
       const path = this.getMessagesPath()
-      const body = path === '/messages'
-        ? { number: params.phone.replace(/^\+/, ''), message: params.message }
+      const body = this.usesWaMessagesApi()
+        ? this.buildWaApiMessageBody(params.phone, params.message)
         : { phone: params.phone, message: params.message, buttons: params.buttons || [] }
       const response = await this.messagesClient.post(path, body)
 
@@ -134,25 +193,21 @@ export class BuilderBotClient {
     }
     try {
       const path = this.getMessagesPath()
-      const number = params.phone.replace(/^\+/, '').trim()
       const caption = (params.caption ?? params.message ?? '').trim() || '\u200B'
 
-      const body =
-        path === '/messages'
-          ? {
-              number,
-              message: caption,
-              media: { url: params.imageUrl, type: 'image' as const },
-            }
-          : {
-              phone: params.phone,
-              message: params.message,
-              media: {
-                url: params.imageUrl,
-                type: 'image',
-                caption: params.caption,
-              },
-            }
+      const body = this.usesWaMessagesApi()
+        ? this.buildWaApiMessageBody(params.phone, caption, {
+            media: { url: params.imageUrl, type: 'image' as const },
+          })
+        : {
+            phone: params.phone,
+            message: params.message,
+            media: {
+              url: params.imageUrl,
+              type: 'image',
+              caption: params.caption,
+            },
+          }
 
       const response = await this.messagesClient.post(path, body)
 
