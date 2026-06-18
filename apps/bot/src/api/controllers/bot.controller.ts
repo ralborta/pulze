@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { userService, prisma } from '@pulze/database'
 import { builderBotClient } from '../../services/builderbot'
 import { sendRoutineToWhatsApp } from '../../services/messaging/send-routine-whatsapp'
+import { buildMagicLink, buildWebappWelcomeMessage } from '../../services/auth/magic-link'
 import { decodePhonePathSegment, isPlaceholder, sanitizePhone } from '../../utils/phone'
 
 /**
@@ -453,7 +454,14 @@ export async function postCompleteOnboarding(req: Request, res: Response) {
     }
 
     if (user.onboardingComplete) {
-      return res.json({ success: true, onboardingComplete: true, alreadyComplete: true })
+      const magicLink = buildMagicLink(phone, '/dashboard')
+      return res.json({
+        success: true,
+        onboardingComplete: true,
+        alreadyComplete: true,
+        magicLink,
+        webappWelcomeMessage: buildWebappWelcomeMessage(magicLink, user.name),
+      })
     }
 
     if (!user.name || user.name === 'pendiente') {
@@ -482,10 +490,59 @@ export async function postCompleteOnboarding(req: Request, res: Response) {
     }
 
     await userService.update(user.id, patch)
-    return res.json({ success: true, onboardingComplete: true })
+
+    const updated = await userService.findById(user.id)
+    const magicLink = buildMagicLink(phone, '/dashboard')
+    const webappWelcomeMessage = buildWebappWelcomeMessage(magicLink, updated?.name || user.name)
+
+    return res.json({
+      success: true,
+      onboardingComplete: true,
+      magicLink,
+      webappWelcomeMessage,
+    })
   } catch (error: any) {
     console.error('Error postCompleteOnboarding:', error)
     return res.status(500).json({ error: 'Error al completar onboarding' })
+  }
+}
+
+/**
+ * GET /api/bot/users/:phone/magic-link
+ * Query: redirect (opcional, ej. /dashboard, /check-ins)
+ */
+export async function getMagicLink(req: Request, res: Response) {
+  try {
+    const raw = decodePhonePathSegment(req.params.phone || '')
+    if (!raw) {
+      return res.status(400).json({ error: 'Teléfono inválido o faltante' })
+    }
+    if (isPlaceholder(raw)) {
+      return res.status(400).json({ error: 'Placeholder de teléfono no válido (usá @from en BuilderBot)' })
+    }
+    const phone = sanitizePhone(raw)
+    if (!phone || !isValidPhonePathSegment(phone)) {
+      return res.status(400).json({ error: 'Teléfono inválido o faltante' })
+    }
+
+    const user = await userService.findByPhone(phone)
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' })
+    }
+
+    const redirect =
+      typeof req.query.redirect === 'string' ? req.query.redirect : '/dashboard'
+    const magicLink = buildMagicLink(phone, redirect)
+
+    return res.json({
+      magicLink,
+      redirect,
+      expiresIn: '15 minutos',
+      webappWelcomeMessage: buildWebappWelcomeMessage(magicLink, user.name),
+    })
+  } catch (error: any) {
+    console.error('Error getMagicLink:', error)
+    return res.status(500).json({ error: 'Error al generar magic link' })
   }
 }
 

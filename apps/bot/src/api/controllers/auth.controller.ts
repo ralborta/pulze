@@ -1,32 +1,31 @@
 import { Request, Response } from 'express'
 import { userService } from '@pulze/database'
-import { generateToken, generateMagicToken, verifyMagicToken } from '../middleware/auth'
+import { generateToken, verifyMagicToken } from '../middleware/auth'
+import { buildMagicLink } from '../../services/auth/magic-link'
 
 /**
  * POST /api/auth/magic-link
- * Generar magic link para acceso a WebApp
+ * Generar magic link para acceso a WebApp (requiere X-API-Key).
+ * Body: { phone, redirect?: "/dashboard" | "/check-ins" | ... }
  */
 export async function createMagicLink(req: Request, res: Response) {
   try {
-    const { phone } = req.body
+    const { phone, redirect } = req.body as { phone?: string; redirect?: string }
 
     if (!phone) {
       return res.status(400).json({ error: 'Teléfono requerido' })
     }
 
-    // Verificar que el usuario existe
     const user = await userService.findByPhone(phone)
     if (!user) {
       return res.status(404).json({ error: 'Usuario no encontrado' })
     }
 
-    // Generar magic token
-    const magicToken = generateMagicToken(phone)
-    const webappUrl = process.env.WEBAPP_URL || 'http://localhost:3000'
-    const magicLink = `${webappUrl}/auth?token=${magicToken}`
+    const magicLink = buildMagicLink(user.phone, redirect)
 
     return res.json({
       magicLink,
+      redirect: redirect || '/dashboard',
       expiresIn: '15 minutos',
     })
   } catch (error: any) {

@@ -6,6 +6,7 @@ import {
   getUserContext,
   getCoachingContext,
   postCompleteOnboarding,
+  getMagicLink,
   postRoutineReminder,
   patchUserProfile,
   postOutboundMessage,
@@ -48,6 +49,12 @@ router.patch('/users/:phone/profile', requireApiKey, patchUserProfile)
  * Cierra onboarding en DB (después del último paso del flow Registro en BuilderBot).
  */
 router.post('/users/:phone/onboarding/complete', requireApiKey, postCompleteOnboarding)
+
+/**
+ * GET /api/bot/users/:phone/magic-link
+ * Magic link a la WebApp para el teléfono del usuario. Query: redirect (opcional).
+ */
+router.get('/users/:phone/magic-link', requireApiKey, getMagicLink)
 
 /**
  * POST /api/bot/users/:phone/routine-reminder
