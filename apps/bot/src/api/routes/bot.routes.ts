@@ -5,6 +5,8 @@ import {
   getBotHealth,
   getUserContext,
   getCoachingContext,
+  postBotContext,
+  postCoachingContext,
   postCompleteOnboarding,
   getMagicLink,
   postRoutineReminder,
@@ -33,10 +35,22 @@ router.post('/inbound', handleBuilderBotWebhook)
 router.get('/users/:phone/context', requireApiKey, getUserContext)
 
 /**
+ * POST /api/bot/context
+ * Ramificación Inicio (BuilderBot): teléfono en body.phone / body.from.
+ */
+router.post('/context', requireApiKey, postBotContext)
+
+/**
  * GET /api/bot/users/:phone/coaching-context
  * Bloques contextBlock / routineBlock / nutritionBlock para BuilderBot (misma auth que context).
  */
 router.get('/users/:phone/coaching-context', requireApiKey, getCoachingContext)
+
+/**
+ * POST /api/bot/coaching-context
+ * Contexto coaching (Seguimiento): teléfono en body.
+ */
+router.post('/coaching-context', requireApiKey, postCoachingContext)
 
 /**
  * PATCH /api/bot/users/:phone/profile

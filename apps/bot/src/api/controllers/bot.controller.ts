@@ -438,6 +438,31 @@ export async function getUserContext(req: Request, res: Response) {
 }
 
 /**
+ * POST /api/bot/context
+ * Igual que GET …/users/:phone/context pero con teléfono en el body (BuilderBot sustituye @from en JSON más fiable que en la URL).
+ * Body: { "phone": "@from" } o { "from": "@from" }
+ */
+export async function postBotContext(req: Request, res: Response) {
+  const fromBody = req.body?.phone ?? req.body?.from
+  if (fromBody != null && String(fromBody).trim()) {
+    req.params = { ...req.params, phone: String(fromBody) }
+  }
+  return getUserContext(req, res)
+}
+
+/**
+ * POST /api/bot/coaching-context
+ * Body: { "phone": "@from" }
+ */
+export async function postCoachingContext(req: Request, res: Response) {
+  const fromBody = req.body?.phone ?? req.body?.from
+  if (fromBody != null && String(fromBody).trim()) {
+    req.params = { ...req.params, phone: String(fromBody) }
+  }
+  return getCoachingContext(req, res)
+}
+
+/**
  * Envía por WhatsApp el mensaje con magic link (evita depender de mapResponse en BuilderBot).
  */
 async function sendWebappWelcomeWhatsApp(phone: string, message: string): Promise<void> {
