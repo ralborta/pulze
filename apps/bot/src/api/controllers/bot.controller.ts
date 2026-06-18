@@ -420,6 +420,16 @@ export async function getUserContext(req: Request, res: Response) {
 }
 
 /**
+ * Envía por WhatsApp el mensaje con magic link (evita depender de mapResponse en BuilderBot).
+ */
+async function sendWebappWelcomeWhatsApp(phone: string, message: string): Promise<void> {
+  const result = await builderBotClient.sendMessage({ phone, message })
+  if (!result.success) {
+    console.error('webappWelcome WhatsApp falló:', result.error, { phone: phone.slice(0, 6) + '***' })
+  }
+}
+
+/**
  * POST /api/bot/users/:phone/onboarding/complete
  * Marca onboarding completo en DB (misma X-API-Key que GET context).
  * Último nodo del flow Registro en BuilderBot: llamar acá cuando el copy diga “onboarding terminado”;
@@ -455,12 +465,14 @@ export async function postCompleteOnboarding(req: Request, res: Response) {
 
     if (user.onboardingComplete) {
       const magicLink = buildMagicLink(phone, '/dashboard')
+      const webappWelcomeMessage = buildWebappWelcomeMessage(magicLink, user.name)
+      await sendWebappWelcomeWhatsApp(phone, webappWelcomeMessage)
       return res.json({
         success: true,
         onboardingComplete: true,
         alreadyComplete: true,
         magicLink,
-        webappWelcomeMessage: buildWebappWelcomeMessage(magicLink, user.name),
+        webappWelcomeMessage,
       })
     }
 
@@ -494,6 +506,7 @@ export async function postCompleteOnboarding(req: Request, res: Response) {
     const updated = await userService.findById(user.id)
     const magicLink = buildMagicLink(phone, '/dashboard')
     const webappWelcomeMessage = buildWebappWelcomeMessage(magicLink, updated?.name || user.name)
+    await sendWebappWelcomeWhatsApp(phone, webappWelcomeMessage)
 
     return res.json({
       success: true,
