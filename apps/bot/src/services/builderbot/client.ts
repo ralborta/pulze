@@ -6,17 +6,23 @@ import axios, { AxiosInstance } from 'axios'
  */
 export class BuilderBotClient {
   private client: AxiosInstance
+  private messagesClient: AxiosInstance
   private apiKey: string
   private botId: string
 
-  /** Base URL de la API (sin /v1). Por defecto wa-api.builderbot.app (BuilderBot Cloud). */
+  /** Base URL del plugin assistant (p. ej. app.builderbot.cloud/api/v2). */
   private baseURL: string
+  /** Base URL para envío de mensajes WhatsApp (wa-api.builderbot.app). */
+  private messagesBaseURL: string
 
   constructor() {
     this.apiKey = process.env.BUILDERBOT_API_KEY || ''
     this.botId = process.env.BUILDERBOT_BOT_ID || ''
     const envUrl = (process.env.BUILDERBOT_API_URL || '').replace(/\/$/, '')
-    this.baseURL = envUrl || 'https://wa-api.builderbot.app'
+    this.baseURL = envUrl || 'https://app.builderbot.cloud/api/v2'
+    this.messagesBaseURL = (
+      process.env.BUILDERBOT_MESSAGES_API_URL || 'https://wa-api.builderbot.app'
+    ).replace(/\/$/, '')
 
     if (!this.apiKey) {
       console.warn('⚠️ BUILDERBOT_API_KEY no configurado')
@@ -25,24 +31,32 @@ export class BuilderBotClient {
       console.warn('⚠️ BUILDERBOT_BOT_ID no configurado (necesario para identificar el bot)')
     }
 
+    const authHeaders = {
+      Authorization: `Bearer ${this.apiKey}`,
+      'Content-Type': 'application/json',
+    }
+
     this.client = axios.create({
       baseURL: `${this.baseURL}/v1`.replace(/\/v1\/v1$/, '/v1'),
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers: authHeaders,
+      timeout: 10000,
+    })
+
+    this.messagesClient = axios.create({
+      baseURL: `${this.messagesBaseURL}/v1`.replace(/\/v1\/v1$/, '/v1'),
+      headers: authHeaders,
       timeout: 10000,
     })
   }
 
-  /** True si está configurada la URL de la API y se pueden enviar mensajes. */
+  /** True si hay credenciales y URL de mensajes para enviar por WhatsApp. */
   canSend(): boolean {
-    return !!(this.baseURL && this.apiKey && this.botId)
+    return !!(this.messagesBaseURL && this.apiKey && this.botId)
   }
 
   /** BuilderBot Cloud usa POST /v1/messages; otra API puede usar /bots/:id/messages/send */
   private getMessagesPath(): string {
-    if (this.baseURL.includes('wa-api.builderbot.app')) {
+    if (this.messagesBaseURL.includes('wa-api.builderbot.app')) {
       return '/messages'
     }
     return this.botId ? `/bots/${this.botId}/messages/send` : '/messages/send'
@@ -71,7 +85,7 @@ export class BuilderBotClient {
     if (!this.canSend()) {
       return {
         success: false,
-        error: 'BUILDERBOT_API_URL no configurada. Configurala en Easypanel con la URL base que indica BuilderBot.',
+        error: 'BUILDERBOT_MESSAGES_API_URL / KEY / BOT_ID no configurados para envío WhatsApp.',
       }
     }
     try {
@@ -79,7 +93,7 @@ export class BuilderBotClient {
       const body = path === '/messages'
         ? { number: params.phone.replace(/^\+/, ''), message: params.message }
         : { phone: params.phone, message: params.message, buttons: params.buttons || [] }
-      const response = await this.client.post(path, body)
+      const response = await this.messagesClient.post(path, body)
 
       return {
         success: true,
@@ -90,7 +104,7 @@ export class BuilderBotClient {
       const isENOTFOUND = String(msg).includes('ENOTFOUND') || String(error.code).includes('ENOTFOUND')
       if (isENOTFOUND) {
         console.error(
-          '❌ No se pudo conectar a la API de BuilderBot (DNS/red). Revisá BUILDERBOT_API_URL en Easypanel y que la URL base sea la correcta (consulta la documentación o soporte de BuilderBot).',
+          '❌ No se pudo conectar a la API de mensajes de BuilderBot (DNS/red). Revisá BUILDERBOT_MESSAGES_API_URL (por defecto https://wa-api.builderbot.app).',
           msg
         )
       } else {
@@ -115,7 +129,7 @@ export class BuilderBotClient {
     if (!this.canSend()) {
       return {
         success: false,
-        error: 'BuilderBot API no configurada (BUILDERBOT_API_URL / KEY / BOT_ID).',
+        error: 'BuilderBot API no configurada (BUILDERBOT_MESSAGES_API_URL / KEY / BOT_ID).',
       }
     }
     try {
@@ -140,7 +154,7 @@ export class BuilderBotClient {
               },
             }
 
-      const response = await this.client.post(path, body)
+      const response = await this.messagesClient.post(path, body)
 
       return {
         success: true,
