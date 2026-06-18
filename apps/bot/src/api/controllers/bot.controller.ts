@@ -807,7 +807,7 @@ export async function postOutboundMessage(req: Request, res: Response) {
     })
 
     if (!sent.success) {
-      return res.status(502).json({
+      return res.status(503).json({
         error: 'Error al enviar por BuilderBot',
         detail: sent.error,
       })

@@ -171,7 +171,11 @@ export class BuilderBotClient {
       }
       return {
         success: false,
-        error: error.response?.data?.message || error.message,
+        error:
+          error.response?.data?.message ||
+          (typeof error.response?.data === 'string' ? error.response.data : null) ||
+          JSON.stringify(error.response?.data) ||
+          error.message,
       }
     }
   }
@@ -219,7 +223,11 @@ export class BuilderBotClient {
       console.error('Error sending image message:', error.response?.data || error.message)
       return {
         success: false,
-        error: error.response?.data?.message || error.message,
+        error:
+          error.response?.data?.message ||
+          (typeof error.response?.data === 'string' ? error.response.data : null) ||
+          JSON.stringify(error.response?.data) ||
+          error.message,
       }
     }
   }
@@ -247,7 +255,11 @@ export class BuilderBotClient {
       console.error('Error sending template:', error.response?.data || error.message)
       return {
         success: false,
-        error: error.response?.data?.message || error.message,
+        error:
+          error.response?.data?.message ||
+          (typeof error.response?.data === 'string' ? error.response.data : null) ||
+          JSON.stringify(error.response?.data) ||
+          error.message,
       }
     }
   }
@@ -271,7 +283,11 @@ export class BuilderBotClient {
       console.error('Error getting message status:', error.response?.data || error.message)
       return {
         success: false,
-        error: error.response?.data?.message || error.message,
+        error:
+          error.response?.data?.message ||
+          (typeof error.response?.data === 'string' ? error.response.data : null) ||
+          JSON.stringify(error.response?.data) ||
+          error.message,
       }
     }
   }
@@ -291,7 +307,11 @@ export class BuilderBotClient {
       console.error('Error configuring webhook:', error.response?.data || error.message)
       return {
         success: false,
-        error: error.response?.data?.message || error.message,
+        error:
+          error.response?.data?.message ||
+          (typeof error.response?.data === 'string' ? error.response.data : null) ||
+          JSON.stringify(error.response?.data) ||
+          error.message,
       }
     }
   }

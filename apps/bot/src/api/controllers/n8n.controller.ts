@@ -438,7 +438,8 @@ export async function sendProactiveMessage(req: Request, res: Response) {
     })
 
     if (!sent.success) {
-      return res.status(502).json({
+      // 503 (no 502): Easypanel reemplaza 502 upstream por HTML genérico y oculta `detail`.
+      return res.status(503).json({
         error: 'Error al enviar por BuilderBot',
         detail: sent.error,
       })
