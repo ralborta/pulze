@@ -203,7 +203,16 @@ function aiSummaryForCoachingDisplay(raw: string | null | undefined): string {
  */
 export async function getCoachingContext(req: Request, res: Response) {
   try {
-    const raw = decodePhonePathSegment(req.params.phone || '')
+    const queryPhone =
+      typeof req.query.phone === 'string'
+        ? req.query.phone
+        : typeof req.query.from === 'string'
+          ? req.query.from
+          : undefined
+    let raw = queryPhone ? decodePhonePathSegment(queryPhone) : ''
+    if (!raw || isPlaceholder(raw)) {
+      raw = decodePhonePathSegment(req.params.phone || '')
+    }
     if (!raw) {
       return res.status(400).json({ error: 'Teléfono inválido o faltante' })
     }
@@ -371,7 +380,16 @@ export async function getCoachingContext(req: Request, res: Response) {
 
 export async function getUserContext(req: Request, res: Response) {
   try {
-    const raw = decodePhonePathSegment(req.params.phone || '')
+    const queryPhone =
+      typeof req.query.phone === 'string'
+        ? req.query.phone
+        : typeof req.query.from === 'string'
+          ? req.query.from
+          : undefined
+    let raw = queryPhone ? decodePhonePathSegment(queryPhone) : ''
+    if (!raw || isPlaceholder(raw)) {
+      raw = decodePhonePathSegment(req.params.phone || '')
+    }
     if (!raw) {
       return res.status(400).json({ error: 'Teléfono inválido o faltante' })
     }
