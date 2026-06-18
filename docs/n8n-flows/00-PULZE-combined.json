@@ -476,6 +476,125 @@
         256,
         448
       ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 11 * * *"
+            }
+          ]
+        }
+      },
+      "id": "b1c2d3e4-f5a6-4789-b012-3456789abcde",
+      "name": "Diario 11:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -640,
+        640
+      ],
+      "webhookId": ""
+    },
+    {
+      "parameters": {
+        "url": "https://pulze-pulze.wd75db.easypanel.host/api/n8n/users/pending-onboarding",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__PULZE_BOT_API_KEY__"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c2d3e4f5-a6b7-4890-c123-456789abcdef",
+      "name": "GET pending-onboarding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -416,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json;\nreturn (body.users || []).map(u => ({ json: u }));"
+      },
+      "id": "d3e4f5a6-b7c8-4901-d234-56789abcdef0",
+      "name": "Un ítem por usuario5",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pulze-pulze.wd75db.easypanel.host/api/n8n/openai/generate-onboarding-nudge",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__PULZE_BOT_API_KEY__"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ userId: $json.id }) }}",
+        "options": {}
+      },
+      "id": "e4f5a6b7-c8d9-4012-e345-6789abcdef01",
+      "name": "POST generate-onboarding-nudge",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        32,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pulze-pulze.wd75db.easypanel.host/api/n8n/proactive-messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__PULZE_BOT_API_KEY__"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ userId: $('Un ítem por usuario5').item.json.id, content: $json.content, messageType: 'onboarding_nudge' }) }}",
+        "options": {}
+      },
+      "id": "f5a6b7c8-d9e0-4123-f456-789abcdef012",
+      "name": "POST proactive-messages5",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        640
+      ]
     }
   ],
   "connections": {
@@ -649,6 +768,50 @@
         [
           {
             "node": "POST proactive-messages4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Diario 11:00": {
+      "main": [
+        [
+          {
+            "node": "GET pending-onboarding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET pending-onboarding": {
+      "main": [
+        [
+          {
+            "node": "Un ítem por usuario5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Un ítem por usuario5": {
+      "main": [
+        [
+          {
+            "node": "POST generate-onboarding-nudge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST generate-onboarding-nudge": {
+      "main": [
+        [
+          {
+            "node": "POST proactive-messages5",
             "type": "main",
             "index": 0
           }

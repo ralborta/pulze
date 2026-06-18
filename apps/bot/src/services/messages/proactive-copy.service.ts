@@ -57,6 +57,15 @@ export function buildCelebrationCopy(params: {
 Seguí así. Si querés, contanos cómo te sentís con este logro.`
 }
 
+export function buildOnboardingNudgeCopy(params: { name: string }): string {
+  const n = firstName(params.name)
+  return `Hola ${n} 👋
+
+Empezaste tu registro en PULZE pero todavía no lo terminaste.
+
+Escribí *HOLA* por acá y en unos minutos dejamos todo listo para tus recordatorios y rutina 💪`
+}
+
 export function buildWeeklyReportCopy(params: {
   name: string
   checkIns: Array<{ sleep: number; energy: number; timestamp: Date }>

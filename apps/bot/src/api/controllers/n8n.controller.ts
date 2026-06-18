@@ -6,8 +6,21 @@ import {
   buildReactivationCopy,
   buildCelebrationCopy,
   buildWeeklyReportCopy,
+  buildOnboardingNudgeCopy,
 } from '../../services/messages/proactive-copy.service'
 import { getArgentinaHour, getArgentinaStartOfToday } from '../../utils/argentina-time'
+
+/** Teléfonos válidos para mensajes proactivos (excluye basura de webhooks). */
+const VALID_PHONE_USER_FILTER = {
+  AND: [
+    { NOT: { phone: { contains: '@' } } },
+    { NOT: { phone: { contains: '{' } } },
+    { NOT: { phone: { contains: '(' } } },
+    { NOT: { name: { equals: '@body' } } },
+    { NOT: { name: { equals: '{body}' } } },
+    { NOT: { name: { startsWith: '_event_' } } },
+  ],
+}
 
 /**
  * GET /api/n8n/users/pending-checkin
@@ -139,6 +152,43 @@ export async function getActive(req: Request, res: Response) {
 }
 
 /**
+ * GET /api/n8n/users/pending-onboarding
+ * Usuarios activos con onboarding incompleto (para recordatorio de completar registro).
+ */
+export async function getPendingOnboarding(req: Request, res: Response) {
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        onboardingComplete: false,
+        botEnabled: true,
+        ...VALID_PHONE_USER_FILTER,
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    })
+
+    return res.json({
+      users: users.map((u) => ({
+        id: u.id,
+        name: u.name,
+        phone: u.phone,
+      })),
+      total: users.length,
+    })
+  } catch (error: any) {
+    console.error('Error getPendingOnboarding:', error)
+    return res.status(500).json({ error: 'Error al obtener usuarios con onboarding pendiente' })
+  }
+}
+
+/**
  * GET /api/n8n/users/milestones
  * Usuarios que hoy cumplen un hito de racha (3, 7, 14, 30 días) para mensaje de celebración.
  */
@@ -242,6 +292,29 @@ export async function generateCelebration(req: Request, res: Response) {
   } catch (error: any) {
     console.error('Error generateCelebration:', error)
     return res.status(500).json({ error: 'Error al armar celebración' })
+  }
+}
+
+/**
+ * POST /api/n8n/openai/generate-onboarding-nudge
+ * Body: { userId }
+ */
+export async function generateOnboardingNudge(req: Request, res: Response) {
+  try {
+    const { userId } = req.body as { userId?: string }
+    if (!userId) return res.status(400).json({ error: 'userId requerido' })
+
+    const user = await userService.findById(userId)
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' })
+    if (user.onboardingComplete) {
+      return res.status(400).json({ error: 'Usuario ya completó onboarding' })
+    }
+
+    const content = buildOnboardingNudgeCopy({ name: user.name })
+    return res.json({ content })
+  } catch (error: any) {
+    console.error('Error generateOnboardingNudge:', error)
+    return res.status(500).json({ error: 'Error al armar recordatorio de onboarding' })
   }
 }
 
@@ -382,6 +455,37 @@ export async function sendProactiveMessage(req: Request, res: Response) {
   } catch (error: any) {
     console.error('Error sendProactiveMessage:', error)
     return res.status(500).json({ error: 'Error al enviar mensaje proactivo' })
+  }
+}
+
+/**
+ * POST /api/n8n/admin/reactivate-users
+ * Body: { phones: string[] }
+ * Reactiva usuarios por teléfono (isActive + botEnabled).
+ */
+export async function reactivateUsers(req: Request, res: Response) {
+  try {
+    const phones = Array.isArray(req.body?.phones)
+      ? req.body.phones.filter((p: unknown): p is string => typeof p === 'string')
+      : []
+    if (!phones.length) {
+      return res.status(400).json({ error: 'phones requerido (array no vacío)' })
+    }
+
+    const result = await prisma.user.updateMany({
+      where: { phone: { in: phones } },
+      data: { isActive: true, botEnabled: true },
+    })
+
+    const users = await prisma.user.findMany({
+      where: { phone: { in: phones } },
+      select: { id: true, name: true, phone: true, isActive: true, botEnabled: true, onboardingComplete: true },
+    })
+
+    return res.json({ reactivated: result.count, users })
+  } catch (error: any) {
+    console.error('Error reactivateUsers:', error)
+    return res.status(500).json({ error: 'Error al reactivar usuarios' })
   }
 }
 
