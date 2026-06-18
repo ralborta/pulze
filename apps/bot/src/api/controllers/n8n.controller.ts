@@ -10,12 +10,19 @@ import {
 } from '../../services/messages/proactive-copy.service'
 import { getArgentinaHour, getArgentinaStartOfToday } from '../../utils/argentina-time'
 
-/** Teléfonos válidos para mensajes proactivos (excluye basura de webhooks). */
-const VALID_PHONE_USER_FILTER = {
+/** Teléfonos válidos para mensajes proactivos (móvil AR: 54911 + 8 dígitos). */
+const VALID_ARG_PHONE_FILTER = {
   AND: [
     { NOT: { phone: { contains: '@' } } },
     { NOT: { phone: { contains: '{' } } },
     { NOT: { phone: { contains: '(' } } },
+    { phone: { startsWith: '54911' } },
+  ],
+}
+
+const VALID_PHONE_USER_FILTER = {
+  AND: [
+    ...VALID_ARG_PHONE_FILTER.AND,
     { NOT: { name: { equals: '@body' } } },
     { NOT: { name: { equals: '{body}' } } },
     { NOT: { name: { startsWith: '_event_' } } },
@@ -162,7 +169,7 @@ export async function getPendingOnboarding(req: Request, res: Response) {
         isActive: true,
         onboardingComplete: false,
         botEnabled: true,
-        ...VALID_PHONE_USER_FILTER,
+        ...VALID_ARG_PHONE_FILTER,
       },
       select: {
         id: true,
