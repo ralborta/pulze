@@ -8,6 +8,8 @@ export class BuilderBotClient {
   private client: AxiosInstance
   private messagesClient: AxiosInstance
   private apiKey: string
+  /** Key exclusiva para wa-api (console.builderbot.app); puede diferir de la del proyecto BB Cloud. */
+  private waApiKey: string
   private botId: string
 
   /** Base URL del plugin assistant (p. ej. app.builderbot.cloud/api/v2). */
@@ -18,6 +20,8 @@ export class BuilderBotClient {
   constructor() {
     this.apiKey = process.env.BUILDERBOT_API_KEY || ''
     this.botId = process.env.BUILDERBOT_BOT_ID || ''
+    /** Token wa-api (console.builderbot.app). Si no está, usa BUILDERBOT_API_KEY. */
+    this.waApiKey = (process.env.BUILDERBOT_WA_API_KEY || this.apiKey).trim()
     const envUrl = (process.env.BUILDERBOT_API_URL || '').replace(/\/$/, '')
     this.baseURL = envUrl || 'https://app.builderbot.cloud/api/v2'
     this.messagesBaseURL = (
@@ -55,7 +59,7 @@ export class BuilderBotClient {
   private getMessagesAuthHeaders(): Record<string, string> {
     if (this.usesWaMessagesApi()) {
       return {
-        Authorization: this.apiKey,
+        Authorization: this.waApiKey,
         'Content-Type': 'application/json',
       }
     }
@@ -88,11 +92,16 @@ export class BuilderBotClient {
 
   /** Prefijo de la key (sin secretos) para saber si es bb-, eyJ, hex, etc. */
   private apiKeyHint(): string {
-    const k = this.apiKey.trim()
+    const k = this.waApiKey.trim()
     if (!k) return '(vacía)'
     if (k.startsWith('eyJ')) return 'eyJ… (JWT — no válida para wa-api)'
     if (k.startsWith('bbc-')) return 'bbc-… (MCP/proyecto — no válida para wa-api)'
-    if (k.startsWith('bb-') || k.startsWith('bb_')) return `${k.slice(0, 6)}… (revisar si es console.builderbot.app)`
+    if (k.startsWith('bb-') || k.startsWith('bb_')) {
+      const separate = !!process.env.BUILDERBOT_WA_API_KEY?.trim()
+      return separate
+        ? `${k.slice(0, 6)}… (BUILDERBOT_WA_API_KEY)`
+        : `${k.slice(0, 6)}… (proyecto BB Cloud — inválida para wa-api; usá BUILDERBOT_WA_API_KEY)`
+    }
     if (/^[a-f0-9]{32,}$/i.test(k)) return 'hex… (parece API_KEY de Pulze/n8n — no wa-api)'
     return `${k.slice(0, 4)}…`
   }
@@ -101,6 +110,7 @@ export class BuilderBotClient {
   getSendDiagnostics(): {
     canSend: boolean
     hasApiKey: boolean
+    hasWaApiKey: boolean
     hasBotId: boolean
     messagesApiUrl: string
     assistantApiUrl: string
@@ -111,6 +121,7 @@ export class BuilderBotClient {
     return {
       canSend: this.canSend(),
       hasApiKey: !!this.apiKey,
+      hasWaApiKey: !!this.waApiKey,
       hasBotId: !!this.botId,
       messagesApiUrl: this.messagesBaseURL,
       assistantApiUrl: this.baseURL,
@@ -125,8 +136,8 @@ export class BuilderBotClient {
    * Diferente de inbound/webhook: usa BUILDERBOT_API_KEY → console.builderbot.app.
    */
   async probeWaApiAuth(): Promise<{ ok: boolean; httpStatus?: number; error?: string }> {
-    if (!this.apiKey) {
-      return { ok: false, error: 'BUILDERBOT_API_KEY vacía' }
+    if (!this.waApiKey) {
+      return { ok: false, error: 'BUILDERBOT_WA_API_KEY / BUILDERBOT_API_KEY vacía' }
     }
     if (!this.usesWaMessagesApi()) {
       return { ok: true, error: 'No usa wa-api (messagesBaseURL custom)' }
@@ -152,7 +163,7 @@ export class BuilderBotClient {
 
   /** True si hay credenciales y URL de mensajes para enviar por WhatsApp. */
   canSend(): boolean {
-    if (!this.messagesBaseURL || !this.apiKey) return false
+    if (!this.messagesBaseURL || !this.waApiKey) return false
     // wa-api solo exige API key; otras bases usan /bots/:id/...
     if (this.usesWaMessagesApi()) return true
     return !!this.botId
@@ -231,7 +242,7 @@ export class BuilderBotClient {
       return await this.messagesClient.post(path, body)
     } catch (error: any) {
       if (error.response?.status !== 403 || !this.usesWaMessagesApi()) throw error
-      return await this.messagesClient.post(`${path}?token=${encodeURIComponent(this.apiKey)}`, body)
+      return await this.messagesClient.post(`${path}?token=${encodeURIComponent(this.waApiKey)}`, body)
     }
   }
 

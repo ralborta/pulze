@@ -12,19 +12,22 @@ DATABASE_URL="postgresql://user:password@host:port/database"
 OPENAI_API_KEY="sk-..."
 
 # BuilderBot.app (WhatsApp Integration)
-BUILDERBOT_API_KEY="bb_live_..."
+BUILDERBOT_API_KEY="bb_live_..."  # Proyecto BuilderBot Cloud (flows, x-api-builderbot, assistant)
+BUILDERBOT_WA_API_KEY=""  # wa-api proactivos: console.builderbot.app → Developers → API Keys (distinta de bb-)
 BUILDERBOT_BOT_ID="tu_bot_id"          # Project ID (obligatorio)
 BUILDERBOT_ANSWER_ID="tu_answer_id"     # Flow ID del agente IA (para actualizar instrucciones)
 BUILDERBOT_WEBHOOK_SECRET=""           # Opcional. Si usás verificación: generá un token y agregalo como header "x-webhook-secret" en BuilderBot
 BUILDERBOT_API_URL="https://app.builderbot.cloud/api/v2"  # URL para assistant plugin (default)
+BUILDERBOT_MESSAGES_API_URL="https://wa-api.builderbot.app"  # Envío saliente WhatsApp (proactivos, outbound)
+BUILDERBOT_DEVICE_ID=""  # Opcional. ID del dispositivo WA en BuilderBot si tenés varios números
 
 # JWT Authentication
 JWT_SECRET="your-secret-key-here-change-in-production"
 
-# App URLs
-WEBAPP_URL="https://pulze-web.vercel.app"
-BACKOFFICE_URL="https://pulze-backoffice.vercel.app"
-BOT_URL="https://your-railway-bot.up.railway.app"
+# App URLs (Easypanel — no usamos Vercel en producción)
+WEBAPP_URL="https://pulze-webapp.wd75db.easypanel.host"
+BACKOFFICE_URL="https://pulze-backoffice.wd75db.easypanel.host"
+BOT_URL="https://pulze-pulze.wd75db.easypanel.host"
 
 # Backoffice (solo si usás el panel admin)
 BOT_API_URL="http://localhost:3001/api"   # Dev: localhost. Easypanel: http://nombre-bot:3001/api (ver docs/EASYPANEL_WEB_BACKOFFICE.md)
