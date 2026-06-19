@@ -12,9 +12,10 @@ import { decodePhonePathSegment, isPlaceholder, sanitizePhone } from '../../util
  */
 export async function getBotHealth(_req: Request, res: Response) {
   const whatsappOutbound = builderBotClient.getSendDiagnostics()
-  const waApiProbe = whatsappOutbound.usesWaMessagesApi
-    ? await builderBotClient.probeWaApiAuth()
-    : null
+  const [waApiProbe, cloudV2Probe] = await Promise.all([
+    builderBotClient.probeWaApiAuth(),
+    builderBotClient.probeCloudV2Auth(),
+  ])
 
   res.json({
     status: 'ok',
@@ -22,13 +23,16 @@ export async function getBotHealth(_req: Request, res: Response) {
     timestamp: new Date().toISOString(),
     whatsappOutbound,
     waApiProbe,
+    cloudV2Probe,
     apis: {
       inbound:
         'BuilderBot → Pulze (webhook / context). Auth: X-API-Key = API_KEY o N8N_API_KEY de Pulze.',
-      outbound:
-        'Pulze → wa-api.builderbot.app (proactivos n8n). Auth: BUILDERBOT_API_KEY de console.builderbot.app/apikeys.',
+      outboundCloudV2:
+        'Pulze → app.builderbot.cloud/api/v2/{botId}/messages (proactivos n8n). Auth: BUILDERBOT_API_KEY bb- + header x-api-builderbot.',
+      outboundWaApi:
+        'Pulze → wa-api.builderbot.app (legacy/console). Auth: token console.builderbot.app/apikeys.',
       assistant:
-        'Pulze → app.builderbot.cloud (clear-conversation, IA). Auth: misma BUILDERBOT_API_KEY con header x-api-builderbot.',
+        'Pulze → app.builderbot.cloud (clear-conversation, IA). Auth: BUILDERBOT_API_KEY + x-api-builderbot.',
     },
   })
 }

@@ -69,9 +69,29 @@ export class BuilderBotClient {
     }
   }
 
+  private getApiV2Base(): string {
+    return (process.env.BUILDERBOT_ASSISTANT_API_URL || process.env.BUILDERBOT_API_URL || 'https://app.builderbot.cloud/api/v2').replace(/\/$/, '')
+  }
+
+  /**
+   * BuilderBot Cloud (bb- del Developer Settings) envía por app.builderbot.cloud/api/v2/{botId}/messages.
+   * wa-api.builderbot.app es otro producto (console.builderbot.app) con otra key.
+   */
+  private getOutboundProvider(): 'cloud-v2' | 'wa-api' {
+    const forced = process.env.BUILDERBOT_MESSAGES_PROVIDER?.trim().toLowerCase()
+    if (forced === 'cloud' || forced === 'cloud-v2') return 'cloud-v2'
+    if (forced === 'wa-api') return 'wa-api'
+    if (this.botId && /^bb-/.test(this.apiKey.trim())) return 'cloud-v2'
+    return 'wa-api'
+  }
+
+  private formatPhoneDigits(phone: string): string {
+    return phone.replace(/\D/g, '')
+  }
+
   /** E.164 con + (requerido por wa-api.builderbot.app). */
   private formatPhoneForWaApi(phone: string): string {
-    const digits = phone.replace(/\D/g, '')
+    const digits = this.formatPhoneDigits(phone)
     return digits ? `+${digits}` : ''
   }
 
@@ -90,20 +110,18 @@ export class BuilderBotClient {
     return body
   }
 
-  /** Prefijo de la key (sin secretos) para saber si es bb-, eyJ, hex, etc. */
+  /** Prefijo de la key (sin secretos) para diagnóstico. */
   private apiKeyHint(): string {
-    const k = this.waApiKey.trim()
+    const k = this.apiKey.trim()
     if (!k) return '(vacía)'
-    if (k.startsWith('eyJ')) return 'eyJ… (JWT — no válida para wa-api)'
-    if (k.startsWith('bbc-')) return 'bbc-… (MCP/proyecto — no válida para wa-api)'
-    if (k.startsWith('bb-') || k.startsWith('bb_')) {
-      const separate = !!process.env.BUILDERBOT_WA_API_KEY?.trim()
-      return separate
-        ? `${k.slice(0, 6)}… (BUILDERBOT_WA_API_KEY)`
-        : `${k.slice(0, 6)}… (proyecto BB Cloud — inválida para wa-api; usá BUILDERBOT_WA_API_KEY)`
+    if (this.getOutboundProvider() === 'cloud-v2') {
+      return `${k.slice(0, 6)}… (BuilderBot Cloud → outbound v2 OK)`
     }
-    if (/^[a-f0-9]{32,}$/i.test(k)) return 'hex… (parece API_KEY de Pulze/n8n — no wa-api)'
-    return `${k.slice(0, 4)}…`
+    const wa = this.waApiKey.trim()
+    if (wa.startsWith('eyJ')) return 'eyJ… (JWT — no válida para wa-api)'
+    if (wa.startsWith('bbc-')) return 'bbc-… (no válida para wa-api)'
+    if (wa.startsWith('bb-')) return `${wa.slice(0, 6)}… (proyecto bb- — usá outbound cloud-v2, no wa-api)`
+    return `${wa.slice(0, 4)}…`
   }
 
   /** Diagnóstico sin exponer secretos (health / debug prod). */
@@ -112,18 +130,26 @@ export class BuilderBotClient {
     hasApiKey: boolean
     hasWaApiKey: boolean
     hasBotId: boolean
+    outboundProvider: 'cloud-v2' | 'wa-api'
     messagesApiUrl: string
+    cloudMessagesUrl: string | null
     assistantApiUrl: string
     usesWaMessagesApi: boolean
     hasDeviceId: boolean
     apiKeyHint: string
   } {
+    const provider = this.getOutboundProvider()
     return {
       canSend: this.canSend(),
       hasApiKey: !!this.apiKey,
       hasWaApiKey: !!this.waApiKey,
       hasBotId: !!this.botId,
+      outboundProvider: provider,
       messagesApiUrl: this.messagesBaseURL,
+      cloudMessagesUrl:
+        provider === 'cloud-v2' && this.botId
+          ? `${this.getApiV2Base()}/${this.botId}/messages`
+          : null,
       assistantApiUrl: this.baseURL,
       usesWaMessagesApi: this.usesWaMessagesApi(),
       hasDeviceId: !!process.env.BUILDERBOT_DEVICE_ID?.trim(),
@@ -132,15 +158,15 @@ export class BuilderBotClient {
   }
 
   /**
-   * Prueba auth contra wa-api (GET /v1/devices) sin enviar mensajes.
-   * Diferente de inbound/webhook: usa BUILDERBOT_API_KEY → console.builderbot.app.
+   * Prueba wa-api (solo si outboundProvider === wa-api).
+   * console.builderbot.app usa otra key distinta de la bb- del proyecto Cloud.
    */
-  async probeWaApiAuth(): Promise<{ ok: boolean; httpStatus?: number; error?: string }> {
+  async probeWaApiAuth(): Promise<{ ok: boolean; httpStatus?: number; error?: string; skipped?: boolean }> {
+    if (this.getOutboundProvider() === 'cloud-v2') {
+      return { ok: true, skipped: true, error: 'No aplica: outbound usa BuilderBot Cloud v2' }
+    }
     if (!this.waApiKey) {
       return { ok: false, error: 'BUILDERBOT_WA_API_KEY / BUILDERBOT_API_KEY vacía' }
-    }
-    if (!this.usesWaMessagesApi()) {
-      return { ok: true, error: 'No usa wa-api (messagesBaseURL custom)' }
     }
     try {
       const response = await axios.get(`${this.messagesBaseURL}/v1/devices`, {
@@ -161,10 +187,44 @@ export class BuilderBotClient {
     }
   }
 
-  /** True si hay credenciales y URL de mensajes para enviar por WhatsApp. */
+  /** Verifica que BUILDERBOT_API_KEY + BOT_ID pueden llamar a Cloud v2 /messages. */
+  async probeCloudV2Auth(): Promise<{ ok: boolean; httpStatus?: number; error?: string; skipped?: boolean }> {
+    if (this.getOutboundProvider() !== 'cloud-v2') {
+      return { ok: true, skipped: true, error: 'No aplica: outbound usa wa-api' }
+    }
+    if (!this.apiKey || !this.botId) {
+      return { ok: false, error: 'BUILDERBOT_API_KEY o BUILDERBOT_BOT_ID faltantes' }
+    }
+    try {
+      const url = `${this.getApiV2Base()}/${this.botId}/messages`
+      const response = await axios.post(
+        url,
+        { number: '0000000000', messages: { content: '\u200B' } },
+        {
+          headers: { 'Content-Type': 'application/json', 'x-api-builderbot': this.apiKey },
+          timeout: 8000,
+          validateStatus: () => true,
+        }
+      )
+      if (response.status === 401 || response.status === 403) {
+        return {
+          ok: false,
+          httpStatus: response.status,
+          error: response.data?.message || JSON.stringify(response.data),
+        }
+      }
+      return { ok: true, httpStatus: response.status }
+    } catch (error: any) {
+      return { ok: false, error: error.message }
+    }
+  }
+
+  /** True si hay credenciales para el proveedor de outbound configurado. */
   canSend(): boolean {
+    if (this.getOutboundProvider() === 'cloud-v2') {
+      return !!(this.apiKey && this.botId)
+    }
     if (!this.messagesBaseURL || !this.waApiKey) return false
-    // wa-api solo exige API key; otras bases usan /bots/:id/...
     if (this.usesWaMessagesApi()) return true
     return !!this.botId
   }
@@ -200,9 +260,66 @@ export class BuilderBotClient {
     if (!this.canSend()) {
       return {
         success: false,
-        error: 'BUILDERBOT_MESSAGES_API_URL / KEY / BOT_ID no configurados para envío WhatsApp.',
+        error: 'BUILDERBOT_API_KEY / BOT_ID no configurados para envío WhatsApp.',
       }
     }
+    if (this.getOutboundProvider() === 'cloud-v2') {
+      return this.sendMessageViaCloudV2(params)
+    }
+    return this.sendMessageViaWaApi(params)
+  }
+
+  /**
+   * BuilderBot Cloud: POST /api/v2/{botId}/messages
+   * Header x-api-builderbot + body { number, messages: { content } }
+   */
+  private async sendMessageViaCloudV2(params: {
+    phone: string
+    message: string
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    const number = this.formatPhoneDigits(params.phone)
+    if (!number) return { success: false, error: 'Número vacío' }
+    try {
+      const url = `${this.getApiV2Base()}/${this.botId}/messages`
+      const response = await axios.post(
+        url,
+        { number, messages: { content: params.message.trim() } },
+        {
+          headers: { 'Content-Type': 'application/json', 'x-api-builderbot': this.apiKey },
+          timeout: 15000,
+          validateStatus: () => true,
+        }
+      )
+      if (response.status < 200 || response.status >= 300) {
+        const err =
+          response.data?.error ||
+          response.data?.message ||
+          (Array.isArray(response.data?.error) ? JSON.stringify(response.data.error) : null) ||
+          JSON.stringify(response.data)
+        return { success: false, error: String(err) }
+      }
+      if (response.data?.error === 'Bot is not online') {
+        return { success: false, error: 'Bot is not online (BuilderBot Cloud)' }
+      }
+      return { success: true, messageId: response.data?.message_id }
+    } catch (error: any) {
+      console.error('Error sending message (Cloud v2):', error.response?.data || error.message)
+      return {
+        success: false,
+        error:
+          error.response?.data?.message ||
+          error.response?.data?.error ||
+          JSON.stringify(error.response?.data) ||
+          error.message,
+      }
+    }
+  }
+
+  private async sendMessageViaWaApi(params: {
+    phone: string
+    message: string
+    buttons?: Array<{ id: string; text: string }>
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
       const path = this.getMessagesPath()
       const body = this.usesWaMessagesApi()
@@ -223,7 +340,7 @@ export class BuilderBotClient {
           msg
         )
       } else {
-        console.error('Error sending message:', error.response?.data || error.message)
+        console.error('Error sending message (wa-api):', error.response?.data || error.message)
       }
       return {
         success: false,
@@ -382,11 +499,6 @@ export class BuilderBotClient {
           error.message,
       }
     }
-  }
-
-  /** Base URL API v2 de BuilderBot Cloud (clear-conversation, mute, assistant). */
-  private getApiV2Base(): string {
-    return (process.env.BUILDERBOT_ASSISTANT_API_URL || process.env.BUILDERBOT_API_URL || 'https://app.builderbot.cloud/api/v2').replace(/\/$/, '')
   }
 
   /**

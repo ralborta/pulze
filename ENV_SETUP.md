@@ -12,9 +12,10 @@ DATABASE_URL="postgresql://user:password@host:port/database"
 OPENAI_API_KEY="sk-..."
 
 # BuilderBot.app (WhatsApp Integration)
-BUILDERBOT_API_KEY="bb_live_..."  # Proyecto BuilderBot Cloud (flows, x-api-builderbot, assistant)
-BUILDERBOT_WA_API_KEY=""  # wa-api proactivos: console.builderbot.app → Developers → API Keys (distinta de bb-)
-BUILDERBOT_BOT_ID="tu_bot_id"          # Project ID (obligatorio)
+BUILDERBOT_API_KEY="bb-64c..."  # Developer Settings → API Reference (flows, assistant Y proactivos Cloud v2)
+BUILDERBOT_BOT_ID="df6916fd-6561-4f4f-afbc-be203eaf4839"
+# BUILDERBOT_WA_API_KEY solo si usás console.builderbot.app/wa-api (producto legacy, otra cuenta)
+# BUILDERBOT_MESSAGES_PROVIDER=cloud-v2  # default automático con key bb-
 BUILDERBOT_ANSWER_ID="tu_answer_id"     # Flow ID del agente IA (para actualizar instrucciones)
 BUILDERBOT_WEBHOOK_SECRET=""           # Opcional. Si usás verificación: generá un token y agregalo como header "x-webhook-secret" en BuilderBot
 BUILDERBOT_API_URL="https://app.builderbot.cloud/api/v2"  # URL para assistant plugin (default)
