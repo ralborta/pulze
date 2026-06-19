@@ -10,12 +10,26 @@ import { decodePhonePathSegment, isPlaceholder, sanitizePhone } from '../../util
 /**
  * GET /api/bot/health
  */
-export function getBotHealth(_req: Request, res: Response) {
+export async function getBotHealth(_req: Request, res: Response) {
+  const whatsappOutbound = builderBotClient.getSendDiagnostics()
+  const waApiProbe = whatsappOutbound.usesWaMessagesApi
+    ? await builderBotClient.probeWaApiAuth()
+    : null
+
   res.json({
     status: 'ok',
     service: 'pulze-bot-api',
     timestamp: new Date().toISOString(),
-    whatsappOutbound: builderBotClient.getSendDiagnostics(),
+    whatsappOutbound,
+    waApiProbe,
+    apis: {
+      inbound:
+        'BuilderBot → Pulze (webhook / context). Auth: X-API-Key = API_KEY o N8N_API_KEY de Pulze.',
+      outbound:
+        'Pulze → wa-api.builderbot.app (proactivos n8n). Auth: BUILDERBOT_API_KEY de console.builderbot.app/apikeys.',
+      assistant:
+        'Pulze → app.builderbot.cloud (clear-conversation, IA). Auth: misma BUILDERBOT_API_KEY con header x-api-builderbot.',
+    },
   })
 }
 

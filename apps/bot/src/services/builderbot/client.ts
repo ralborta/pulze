@@ -86,22 +86,67 @@ export class BuilderBotClient {
     return body
   }
 
+  /** Prefijo de la key (sin secretos) para saber si es bb-, eyJ, hex, etc. */
+  private apiKeyHint(): string {
+    const k = this.apiKey.trim()
+    if (!k) return '(vacía)'
+    if (k.startsWith('eyJ')) return 'eyJ… (JWT — no válida para wa-api)'
+    if (k.startsWith('bbc-')) return 'bbc-… (MCP/proyecto — no válida para wa-api)'
+    if (k.startsWith('bb-') || k.startsWith('bb_')) return `${k.slice(0, 6)}… (revisar si es console.builderbot.app)`
+    if (/^[a-f0-9]{32,}$/i.test(k)) return 'hex… (parece API_KEY de Pulze/n8n — no wa-api)'
+    return `${k.slice(0, 4)}…`
+  }
+
   /** Diagnóstico sin exponer secretos (health / debug prod). */
   getSendDiagnostics(): {
     canSend: boolean
     hasApiKey: boolean
     hasBotId: boolean
     messagesApiUrl: string
+    assistantApiUrl: string
     usesWaMessagesApi: boolean
     hasDeviceId: boolean
+    apiKeyHint: string
   } {
     return {
       canSend: this.canSend(),
       hasApiKey: !!this.apiKey,
       hasBotId: !!this.botId,
       messagesApiUrl: this.messagesBaseURL,
+      assistantApiUrl: this.baseURL,
       usesWaMessagesApi: this.usesWaMessagesApi(),
       hasDeviceId: !!process.env.BUILDERBOT_DEVICE_ID?.trim(),
+      apiKeyHint: this.apiKeyHint(),
+    }
+  }
+
+  /**
+   * Prueba auth contra wa-api (GET /v1/devices) sin enviar mensajes.
+   * Diferente de inbound/webhook: usa BUILDERBOT_API_KEY → console.builderbot.app.
+   */
+  async probeWaApiAuth(): Promise<{ ok: boolean; httpStatus?: number; error?: string }> {
+    if (!this.apiKey) {
+      return { ok: false, error: 'BUILDERBOT_API_KEY vacía' }
+    }
+    if (!this.usesWaMessagesApi()) {
+      return { ok: true, error: 'No usa wa-api (messagesBaseURL custom)' }
+    }
+    try {
+      const response = await axios.get(`${this.messagesBaseURL}/v1/devices`, {
+        headers: this.getMessagesAuthHeaders(),
+        timeout: 8000,
+        validateStatus: () => true,
+      })
+      if (response.status >= 200 && response.status < 300) {
+        return { ok: true, httpStatus: response.status }
+      }
+      return {
+        ok: false,
+        httpStatus: response.status,
+        error: response.data?.message || JSON.stringify(response.data),
+      }
+    } catch (error: any) {
+      return { ok: false, error: error.message }
     }
   }
 
@@ -152,7 +197,7 @@ export class BuilderBotClient {
       const body = this.usesWaMessagesApi()
         ? this.buildWaApiMessageBody(params.phone, params.message)
         : { phone: params.phone, message: params.message, buttons: params.buttons || [] }
-      const response = await this.messagesClient.post(path, body)
+      const response = await this.postWaMessage(path, body)
 
       return {
         success: true,
@@ -177,6 +222,16 @@ export class BuilderBotClient {
           JSON.stringify(error.response?.data) ||
           error.message,
       }
+    }
+  }
+
+  /** POST wa-api; reintenta con ?token= si Authorization devuelve 403. */
+  private async postWaMessage(path: string, body: Record<string, unknown>) {
+    try {
+      return await this.messagesClient.post(path, body)
+    } catch (error: any) {
+      if (error.response?.status !== 403 || !this.usesWaMessagesApi()) throw error
+      return await this.messagesClient.post(`${path}?token=${encodeURIComponent(this.apiKey)}`, body)
     }
   }
 
@@ -213,7 +268,9 @@ export class BuilderBotClient {
             },
           }
 
-      const response = await this.messagesClient.post(path, body)
+      const response = this.usesWaMessagesApi()
+        ? await this.postWaMessage(path, body)
+        : await this.messagesClient.post(path, body)
 
       return {
         success: true,
