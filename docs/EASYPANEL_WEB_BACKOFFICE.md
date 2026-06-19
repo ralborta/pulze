@@ -1,39 +1,85 @@
 # Deploy WebApp y Backoffice en Easypanel
 
-Para que se vean la **WebApp** y el **Backoffice** además del bot, creá dos apps más en Easypanel (mismo repo, otro Dockerfile).
+PULZE en producción corre en **Easypanel** (bot, n8n, web, backoffice). **No hace falta Vercel.**
 
-**Deploy automático al hacer push:** ver [EASYPANEL_DEPLOY.md](./EASYPANEL_DEPLOY.md) (integración GitHub en Easypanel o webhooks desde GitHub Actions).
+**Deploy automático al hacer push:** ver [EASYPANEL_DEPLOY.md](./EASYPANEL_DEPLOY.md).
 
-## 1. WebApp (app para usuarios)
+## Arquitectura actual
 
-- **Nueva App** → Origen: **Git** (mismo repo que el bot).
-- **Build**:
-  - **Dockerfile path:** `apps/web/Dockerfile`
-  - **Root directory / Build context:** raíz del repo (vacío o `.`). No uses `apps/web`.
-- **Puerto:** `3000`.
-- **Dominio:** Ej. `web.tudominio.com` o el subdominio que uses.
-- **Variables de entorno:** por ahora ninguna obligatoria (si más adelante la web llama al bot/API, agregá `NEXT_PUBLIC_API_URL` o similar).
+| Servicio   | Easypanel (ejemplo) | Puerto |
+|-----------|---------------------|--------|
+| Bot/API   | `pulze-pulze.wd75db.easypanel.host` | 3001 |
+| n8n       | `pulze-n8n.wd75db.easypanel.host` | — |
+| WebApp    | `https://pulze-webapp.wd75db.easypanel.host` | 3000 |
+| Backoffice| **crear app** → ej. `pulze-backoffice...` | 3000 |
+
+Hoy la web está en Easypanel; los magic links del bot deben usar `WEBAPP_URL` con ese dominio.
+
+---
+
+## 1. WebApp (usuarios + magic link `/auth`)
+
+### App en Easypanel
+
+- **URL producción:** `https://pulze-webapp.wd75db.easypanel.host`
+- **Dockerfile path:** `apps/web/Dockerfile`
+- **Build context:** raíz del repo (`.`)
+- **Puerto:** `3000`
+
+### Variables de entorno (build + runtime)
+
+En Easypanel, agregalas **antes del primer build** (Next.js las embebe al compilar):
+
+| Variable | Ejemplo | Para qué |
+|----------|---------|----------|
+| `NEXT_PUBLIC_API_URL` | `https://pulze-pulze.wd75db.easypanel.host` | La web llama al bot (`/api/auth/verify`, `/api/users/me`, etc.) |
+| `NEXT_PUBLIC_WHATSAPP_NUMBER` | `5491133788190` | Links `wa.me` en dashboard y preferencias |
+
+Si cambiás `NEXT_PUBLIC_*`, **redeploy con rebuild** (no alcanza restart).
+
+### Bot: `WEBAPP_URL`
+
+En la app del **bot**, agregá o corregí:
+
+```
+WEBAPP_URL=https://pulze-webapp.wd75db.easypanel.host
+```
+
+(sin barra final; usá el dominio real de tu app web en Easypanel)
+
+Sin esto, los magic links de WhatsApp apuntan a localhost o a una URL vieja de Vercel.
+
+---
 
 ## 2. Backoffice (admin)
 
-- **Nueva App** → Origen: **Git** (mismo repo).
-- **Build**:
-  - **Dockerfile path:** `apps/backoffice/Dockerfile`
-  - **Root directory / Build context:** raíz del repo (vacío o `.`). No uses `apps/backoffice`.
-- **Puerto:** `3000`.
-- **Dominio:** Ej. `backoffice.tudominio.com`.
-- **Variables de entorno** (obligatorias para que funcione con datos reales):
-  - `BOT_API_URL` → URL interna del bot. En Easypanel usá el nombre del servicio: `http://nombre-del-bot:3001/api` (ej. si el bot se llama `pulze-bot`: `http://pulze-bot:3001/api`). O la URL externa si tenés dominio: `https://api.tudominio.com/api`.
-  - `BACKOFFICE_API_KEY` → Clave secreta. La misma que configurás en el bot como `BACKOFFICE_API_KEY` (para que el backoffice pueda llamar al API admin).
+- **Dockerfile path:** `apps/backoffice/Dockerfile`
+- **Build context:** raíz del repo
+- **Puerto:** `3000`
 
-## Resumen
+| Variable | Valor |
+|----------|--------|
+| `BOT_API_URL` | `http://pulze-pulze:3001/api` (nombre interno del servicio bot) **o** URL externa del bot |
+| `BACKOFFICE_API_KEY` | Misma clave que en el bot |
 
-| Servicio   | Dockerfile path              | Puerto | Env vars clave |
-|-----------|------------------------------|--------|----------------|
-| Bot/API   | `Dockerfile` (raíz)          | 3001   | `DATABASE_URL`, `BUILDERBOT_*`, `BACKOFFICE_API_KEY` |
-| WebApp    | `apps/web/Dockerfile`        | 3000   | - |
-| Backoffice| `apps/backoffice/Dockerfile` | 3000   | `BOT_API_URL`, `BACKOFFICE_API_KEY` |
+---
 
-Los tres usan el **mismo repositorio**; en cada app solo cambiás el **Dockerfile path** y el dominio/puerto.
+## Checklist rápido
 
-**Importante:** En Easypanel, el backoffice **no** usa localhost. Debés configurar `BOT_API_URL` con la URL del bot: interna (`http://nombre-servicio-bot:3001/api`) o externa si tenés dominio.
+1. Crear app **Web** en Easypanel (`apps/web/Dockerfile`, puerto 3000).
+2. Setear `NEXT_PUBLIC_API_URL` y `NEXT_PUBLIC_WHATSAPP_NUMBER` → **deploy**.
+3. Copiar el dominio de la web → ponerlo en el bot como `WEBAPP_URL` → **redeploy bot**.
+4. Probar: abrir `https://tu-web/auth` (debe mostrar error de token, no 404).
+5. Completar onboarding en WA → debe llegar link con el dominio de Easypanel.
+
+---
+
+## Resumen Dockerfile
+
+| Servicio   | Dockerfile path              | Puerto |
+|-----------|------------------------------|--------|
+| Bot/API   | `Dockerfile` (raíz)          | 3001   |
+| WebApp    | `apps/web/Dockerfile`        | 3000   |
+| Backoffice| `apps/backoffice/Dockerfile` | 3000   |
+
+Los tres usan el **mismo repositorio**; solo cambia el Dockerfile path.

@@ -11,15 +11,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
+
       - name: Install pnpm
         run: npm install -g pnpm
-      
+
       - name: Install dependencies
         run: pnpm install
 
@@ -28,73 +28,19 @@ jobs:
 
       - name: Build database package
         run: pnpm build:database
-      
+
       - name: Build bot
         run: pnpm build:bot
-      
+
       - name: Build web
         run: pnpm build:web
-      
+
       - name: Build backoffice
         run: pnpm build:backoffice
 
-  # Requiere en GitHub Secrets: RAILWAY_TOKEN (project token), RAILWAY_PROJECT_ID, RAILWAY_SERVICE_ID
-  # O conectar el repo en Railway (Settings → Source → Connect Repo) para deploy automático al hacer push
-  deploy-railway:
-    needs: test
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Railway CLI
-        run: npm i -g @railway/cli
-      
-      - name: Deploy to Railway
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
-        run: |
-          if [ -n "$RAILWAY_TOKEN" ] && [ -n "$RAILWAY_SERVICE_ID" ]; then
-            railway up --service "$RAILWAY_SERVICE_ID" --detach
-          else
-            echo "Railway secrets not configured; skipping deploy."
-          fi
-
-  # Opcional / legado: solo corre si configurás VERCEL_TOKEN (no usamos Vercel en prod)
-  deploy-vercel:
-    needs: test
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Deploy Web to Vercel
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_WEB_PROJECT_ID }}
-        run: |
-          if [ -z "$VERCEL_TOKEN" ]; then echo "Vercel not configured; skipping web."; exit 0; fi
-          npm i -g vercel
-          cd apps/web
-          vercel deploy --prod --token "$VERCEL_TOKEN" --scope "$VERCEL_ORG_ID" || true
-          
-      - name: Deploy Backoffice to Vercel
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_BACKOFFICE_PROJECT_ID }}
-        run: |
-          if [ -z "$VERCEL_TOKEN" ]; then echo "Vercel not configured; skipping backoffice."; exit 0; fi
-          npm i -g vercel
-          cd apps/backoffice
-          vercel deploy --prod --token "$VERCEL_TOKEN" --scope "$VERCEL_ORG_ID" || true
-
-  # Easypanel: deploy automático al hacer push (opcional).
-  # En cada app en Easypanel: copiá la "Deploy Webhook URL" y agregala en GitHub Secrets.
-  # Secretos: EASYPANEL_BOT_WEBHOOK, EASYPANEL_WEB_WEBHOOK, EASYPANEL_BACKOFFICE_WEBHOOK
-  # O uno solo: EASYPANEL_WEBHOOK_URL. Ver docs/EASYPANEL_DEPLOY.md
+  # Producción: solo Easypanel (no Vercel, no Railway).
+  # Opción A: Auto Deploy en cada app Easypanel conectada al repo (recomendado).
+  # Opción B: webhooks de deploy en GitHub Secrets → docs/EASYPANEL_DEPLOY.md
   deploy-easypanel:
     needs: test
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
@@ -107,6 +53,14 @@ jobs:
           BACK: ${{ secrets.EASYPANEL_BACKOFFICE_WEBHOOK }}
           ONE: ${{ secrets.EASYPANEL_WEBHOOK_URL }}
         run: |
+          triggered=0
           for url in "$BOT" "$WEB" "$BACK" "$ONE"; do
-            [ -n "$url" ] && curl -sfS -X POST "$url" || true
+            if [ -n "$url" ]; then
+              echo "POST $url"
+              curl -sfS -X POST "$url" && triggered=$((triggered + 1)) || echo "Webhook falló (revisar URL)"
+            fi
           done
+          if [ "$triggered" -eq 0 ]; then
+            echo "Sin webhooks EASYPANEL_* en GitHub Secrets."
+            echo "Usá Auto Deploy en Easypanel o agregá las URLs (ver docs/EASYPANEL_DEPLOY.md)."
+          fi

@@ -8,9 +8,9 @@ Plataforma de acompañamiento de bienestar que combina WhatsApp (constancia diar
 ```
 pulze/
 ├── apps/
-│   ├── bot/              # BuilderBot + Backend API (Railway)
-│   ├── web/              # WebApp PWA para usuarios (Vercel)
-│   └── backoffice/       # Dashboard admin (Vercel)
+│   ├── bot/              # Backend API + webhooks (Easypanel)
+│   ├── web/              # WebApp PWA para usuarios (Easypanel)
+│   └── backoffice/       # Dashboard admin (Easypanel)
 ├── packages/
 │   ├── shared/           # Tipos, utils, constantes
 │   ├── ai-engine/        # Motor de IA y personalización
@@ -20,15 +20,15 @@ pulze/
 
 ## 🚀 Stack Tecnológico
 
-### Backend (Railway)
-- **BuilderBot**: Framework para WhatsApp
-- **NestJS/Express**: API REST
+### Backend (Easypanel + PostgreSQL)
+- **BuilderBot Cloud**: Canal WhatsApp
+- **Express**: API REST (`apps/bot`)
 - **Prisma**: ORM
-- **PostgreSQL**: Base de datos principal
-- **Redis**: Cache y sessions
+- **PostgreSQL**: Base de datos (Railway u otro host; no el bot en Railway hoy)
 - **OpenAI**: Motor de IA
+- **n8n**: Crons proactivos (Easypanel)
 
-### Frontend (Vercel)
+### Frontend (Easypanel — Docker / Next.js standalone)
 - **Next.js 15**: Framework React
 - **TypeScript**: Type safety
 - **Tailwind CSS**: Styling
@@ -57,16 +57,28 @@ pnpm dev:web          # WebApp
 pnpm dev:backoffice   # Dashboard admin
 ```
 
-## 🚢 Deploy
+## 🚢 Deploy (producción = Easypanel)
 
-### Railway (Bot + Backend)
-```bash
-pnpm deploy:railway
-```
+Todo el stack vivo está en **Easypanel** (mismo repo, distinto Dockerfile por app):
 
-### Vercel (Web + Backoffice)
+| App | Dockerfile | URL ejemplo |
+|-----|------------|-------------|
+| Bot/API | `Dockerfile` (raíz) | `https://pulze-pulze.wd75db.easypanel.host` |
+| WebApp | `apps/web/Dockerfile` | `https://pulze-webapp.wd75db.easypanel.host` |
+| Backoffice | `apps/backoffice/Dockerfile` | (tu subdominio Easypanel) |
+| n8n | (servicio aparte) | `https://pulze-n8n.wd75db.easypanel.host` |
+
+Guías:
+- [Web + Backoffice en Easypanel](./docs/EASYPANEL_WEB_BACKOFFICE.md)
+- [Deploy automático (GitHub → Easypanel)](./docs/EASYPANEL_DEPLOY.md)
+- [Variables de entorno](./ENV_SETUP.md)
+
+**No usamos Vercel** en este proyecto. El script `pnpm deploy:vercel` quedó por legado; ignorarlo.
+
+### Railway (solo referencia / DB)
+
 ```bash
-pnpm deploy:vercel
+pnpm deploy:railway   # opcional; el bot en prod no está en Railway hoy
 ```
 
 ## 📱 Features V1
@@ -119,15 +131,13 @@ pnpm build:web            # Build producción web
 pnpm build:backoffice     # Build producción backoffice
 pnpm db:migrate           # Migrar base de datos
 pnpm db:studio            # Abrir Prisma Studio
-pnpm deploy:railway       # Deploy a Railway
-pnpm deploy:vercel        # Deploy a Vercel
+pnpm deploy:railway       # Legacy / DB (prod bot = Easypanel)
 ```
 
 ## 📖 Documentación
 
-- [Guía de desarrollo](./docs/DEVELOPMENT.md)
-- [Arquitectura técnica](./docs/ARCHITECTURE.md)
-- [API Reference](./docs/API.md)
+- [Web + Backoffice Easypanel](./docs/EASYPANEL_WEB_BACKOFFICE.md)
+- [Deploy Easypanel](./docs/EASYPANEL_DEPLOY.md)
 
 ## 📄 Licencia
 

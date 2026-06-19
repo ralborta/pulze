@@ -1,163 +1,75 @@
-# 🚀 Quick Deploy - Comandos Rápidos
+# Quick Deploy — Easypanel (producción PULZE)
 
-## Para usuarios que prefieren CLI
+**PULZE en producción corre en Easypanel, no en Vercel ni Railway (bot).**
 
-### 🚂 Railway (Bot)
+## URLs actuales
+
+| Servicio | URL |
+|----------|-----|
+| Bot/API | `https://pulze-pulze.wd75db.easypanel.host` |
+| WebApp | `https://pulze-webapp.wd75db.easypanel.host` |
+| n8n | `https://pulze-n8n.wd75db.easypanel.host` |
+
+## Apps en Easypanel (mismo repo GitHub)
+
+Cada app: **Git** → repo `ralborta/pulze` → **build context = raíz** (`.`).
+
+| App | Dockerfile | Puerto |
+|-----|------------|--------|
+| Bot | `Dockerfile` | 3001 |
+| Web | `apps/web/Dockerfile` | 3000 |
+| Backoffice | `apps/backoffice/Dockerfile` | 3000 |
+
+Detalle de variables: [EASYPANEL_WEB_BACKOFFICE.md](./EASYPANEL_WEB_BACKOFFICE.md)
+
+## Variables clave
+
+### Bot (Easypanel)
 
 ```bash
-# 1. Crear proyecto (hazlo desde la web es más fácil)
-# https://railway.app/new
+DATABASE_URL=postgresql://...
+WEBAPP_URL=https://pulze-webapp.wd75db.easypanel.host
+JWT_SECRET=...
+API_KEY=...                    # BuilderBot / n8n
+BUILDERBOT_MESSAGES_API_URL=https://wa-api.builderbot.app
+BUILDERBOT_API_KEY=...
+BUILDERBOT_BOT_ID=df6916fd-6561-4f4f-afbc-be203eaf4839
+```
 
-# 2. Link con tu proyecto local
-cd /Users/ralborta/pulze
-railway link
+### Web (Easypanel) — en el **build**
 
-# 3. Agregar PostgreSQL desde railway.app
+```bash
+NEXT_PUBLIC_API_URL=https://pulze-pulze.wd75db.easypanel.host
+NEXT_PUBLIC_WHATSAPP_NUMBER=54911XXXXXXXX
+```
 
-# 4. Configurar variables
-railway variables set OPENAI_API_KEY=sk-tu-key
-railway variables set BOT_NAME="PULZE Coach"
-railway variables set PORT=3001
-railway variables set NODE_ENV=production
+### Backoffice (Easypanel)
 
-# Generar JWT secret
-railway variables set JWT_SECRET=$(openssl rand -base64 32)
+```bash
+BOT_API_URL=http://pulze-pulze:3001/api
+BACKOFFICE_API_KEY=...   # misma que en el bot
+```
 
-# 5. Deploy
-cd apps/bot
-railway up
+## Deploy automático al push
 
-# 6. Ver logs
-railway logs --tail
+Ver [EASYPANEL_DEPLOY.md](./EASYPANEL_DEPLOY.md) (webhook GitHub en Easypanel o secretos `EASYPANEL_*_WEBHOOK` en GitHub Actions).
+
+## Checklist post-deploy
+
+- [ ] `GET https://pulze-pulze.wd75db.easypanel.host/api/bot/health` → `ok`
+- [ ] `https://pulze-webapp.wd75db.easypanel.host/dashboard` carga
+- [ ] `WEBAPP_URL` en el bot = dominio real de la web
+- [ ] BuilderBot ONLINE y WhatsApp conectado
+- [ ] Mensaje de prueba por WA → responde el coach
+
+## Desarrollo local
+
+```bash
+pnpm install
+pnpm dev:bot
+pnpm dev:web
 ```
 
 ---
 
-### ⚡ Vercel (Web)
-
-```bash
-# 1. Deploy Web
-cd /Users/ralborta/pulze/apps/web
-vercel
-
-# Respuestas:
-# - Set up and deploy? Y
-# - Link to existing? N
-# - Project name: pulze-web
-# - Directory: ./
-# - Override settings? N
-
-# 2. Configurar variables (después del primer deploy)
-vercel env add NEXT_PUBLIC_API_URL production
-# Pega: https://tu-railway-url.up.railway.app
-
-vercel env add NEXT_PUBLIC_WEB_URL production  
-# Pega: https://pulze-web.vercel.app
-
-# 3. Redeploy con variables
-vercel --prod
-```
-
----
-
-### ⚡ Vercel (Backoffice)
-
-```bash
-# 1. Deploy Backoffice
-cd /Users/ralborta/pulze/apps/backoffice
-vercel
-
-# Respuestas:
-# - Set up and deploy? Y
-# - Link to existing? N
-# - Project name: pulze-backoffice
-# - Directory: ./
-# - Override settings? N
-
-# 2. Configurar variables
-vercel env add NEXT_PUBLIC_API_URL production
-# Pega: https://tu-railway-url.up.railway.app
-
-# 3. Redeploy
-vercel --prod
-```
-
----
-
-## 📋 Checklist Rápido
-
-```bash
-# Railway
-□ Proyecto creado en railway.app
-□ PostgreSQL agregado
-□ Variables configuradas
-□ Bot deployado
-□ WhatsApp conectado (escanear QR en logs)
-
-# Vercel
-□ pulze-web deployado
-□ pulze-backoffice deployado
-□ Variables configuradas
-□ Sitios accesibles
-```
-
----
-
-## 🔑 Variables Necesarias
-
-### Railway (Bot)
-```
-DATABASE_URL           (auto desde PostgreSQL)
-OPENAI_API_KEY        (obtener de openai.com)
-BOT_NAME              PULZE Coach
-PORT                  3001
-NODE_ENV              production
-JWT_SECRET            (generar: openssl rand -base64 32)
-```
-
-### Vercel (Web)
-```
-NEXT_PUBLIC_API_URL         (Railway URL)
-NEXT_PUBLIC_WEB_URL         (Vercel URL)
-NEXT_PUBLIC_WHATSAPP_NUMBER (tu número)
-```
-
-### Vercel (Backoffice)
-```
-NEXT_PUBLIC_API_URL         (Railway URL)
-```
-
----
-
-## ⚡ Deploy en 5 minutos
-
-```bash
-# 1. Railway (desde web)
-open https://railway.app/new
-# Importar ralborta/pulze → Agregar PostgreSQL → Configurar variables
-
-# 2. Vercel Web
-cd apps/web && vercel --prod
-
-# 3. Vercel Backoffice  
-cd ../backoffice && vercel --prod
-
-# ✅ Listo!
-```
-
----
-
-## 🆘 Si algo falla
-
-```bash
-# Ver logs Railway
-railway logs --tail
-
-# Ver logs Vercel
-vercel logs pulze-web
-vercel logs pulze-backoffice
-
-# Redeploy
-railway up              # Railway
-vercel --prod           # Vercel
-```
+> **Nota:** Las secciones antiguas de Vercel/Railway en `DEPLOYMENT_GUIDE.md` son legado. Para prod usá solo Easypanel.

@@ -10,6 +10,25 @@ import { builderBotClient } from '../../services/builderbot'
 /** Respuesta al canal: sin texto generado en PULZE; el copy lo arma BuilderBot. */
 const BB_REPLY = '\u200B'
 
+const SEGUIMIENTO_GREETING =
+  'Hola! Soy PULZE, tu coach de bienestar 🌟 ¿Cómo venís hoy?'
+
+const REGISTRO_GREETING =
+  '¡Hola! Soy PULZE 🌟 Vamos a completar tu registro. ¿Cómo te llamás?'
+
+/** Saludos sueltos: BuilderBot solo dispara Inicio con EVENTS.WELCOME (primer contacto). */
+function isSimpleGreeting(text: string): boolean {
+  const t = text
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[!?.¿¡]+$/g, '')
+  return /^(hola|buenas?|buen[oa]s?(?:\s+(?:dias?|tardes?|noches?))?|hey|que\s*tal|hi|hello)$/.test(
+    t
+  )
+}
+
 /**
  * Tipos de eventos de BuilderBot
  * BuilderBot puede enviar el texto en "message" o en "body"
@@ -304,10 +323,14 @@ function shouldSendViaBuilderBotApi(): boolean {
   return process.env.PULZE_SEND_VIA_BUILDERBOT_API === 'true'
 }
 
-async function sendReplyViaBuilderBot(phone: string, message: string | null): Promise<void> {
-  // No enviar solo espacio/ZWSP: el mensaje lo genera BuilderBot
+async function sendReplyViaBuilderBot(
+  phone: string,
+  message: string | null,
+  opts?: { force?: boolean }
+): Promise<void> {
   if (!message?.trim() || message === BB_REPLY || !phone) return
-  if (!shouldSendViaBuilderBotApi() || !builderBotClient.canSend()) return
+  if (!opts?.force && (!shouldSendViaBuilderBotApi() || !builderBotClient.canSend())) return
+  if (opts?.force && !builderBotClient.canSend()) return
   const to = phone.includes('+') ? phone : `+${phone}`
   const result = await builderBotClient.sendMessage({ phone: to, message })
   if (!result.success) {
@@ -427,11 +450,12 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     }
     const { nombre: onboardingNombre } = await handleOnboarding(user.id, text, intent)
     const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
+    const onboardingReply = isSimpleGreeting(text) ? REGISTRO_GREETING : BB_REPLY
     await prisma.conversation.create({
       data: {
         userId: user.id,
         role: 'assistant',
-        message: BB_REPLY,
+        message: onboardingReply,
         metadata: { intent, phase: 'onboarding' },
       },
     })
@@ -439,7 +463,10 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
       where: { userId: user.id },
       data: { messagesSent: { increment: 1 } },
     })
-    res.json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: true, nombre }))
+    if (onboardingReply !== BB_REPLY) {
+      await sendReplyViaBuilderBot(phone, onboardingReply, { force: true })
+    }
+    res.json(webhookPayload(onboardingReply, { flow: 'onboarding', registered: true, nombre }))
     return
   }
 
@@ -506,6 +533,9 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     await handleTrainingQuery(user, text, entities)
   } else {
     await handleGeneralConversation(user, text, intent)
+    if (isSimpleGreeting(text)) {
+      response = SEGUIMIENTO_GREETING
+    }
   }
 
   await prisma.conversation.create({
@@ -543,7 +573,8 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
   }
 
   try {
-    await sendReplyViaBuilderBot(event.from, response)
+    const forceOutbound = response !== BB_REPLY
+    await sendReplyViaBuilderBot(event.from, response, { force: forceOutbound })
   } catch (err: any) {
     console.error('⚠️ sendReplyViaBuilderBot falló:', err?.message)
   }

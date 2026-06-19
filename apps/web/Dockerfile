@@ -4,7 +4,12 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copiar la app web desde el monorepo (contexto = raíz del repo)
+# Next.js embebe NEXT_PUBLIC_* en el bundle en build time
+ARG NEXT_PUBLIC_API_URL=https://pulze-pulze.wd75db.easypanel.host
+ARG NEXT_PUBLIC_WHATSAPP_NUMBER=
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_WHATSAPP_NUMBER=$NEXT_PUBLIC_WHATSAPP_NUMBER
+
 COPY apps/web ./
 RUN npm install --legacy-peer-deps
 RUN npm run build

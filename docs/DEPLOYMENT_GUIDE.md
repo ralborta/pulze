@@ -1,8 +1,12 @@
-# 🚀 Guía de Deployment: Railway + Vercel
+# 🚀 Guía de Deployment (legado Railway + Vercel)
+
+> **⚠️ Producción PULZE hoy:** todo en **Easypanel** (bot, web, backoffice, n8n).  
+> **Usá:** [EASYPANEL_WEB_BACKOFFICE.md](./EASYPANEL_WEB_BACKOFFICE.md) y [QUICK_DEPLOY.md](./QUICK_DEPLOY.md).  
+> Este archivo se mantiene solo como referencia histórica.
 
 ## 📋 Resumen
 
-Este documento te guía paso a paso para deployar PULZE en Railway (bot) y Vercel (web + backoffice).
+Este documento describe un deploy alternativo en Railway (bot) y Vercel (web + backoffice). **No es el setup actual del proyecto.**
 
 ---
 
