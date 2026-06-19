@@ -16,6 +16,7 @@ import {
   sendProactiveMessage,
   disableJunkUsers,
   reactivateUsers,
+  resetOnboarding,
 } from '../controllers/n8n.controller'
 
 const router = Router()
@@ -42,5 +43,6 @@ router.post('/proactive-messages', sendProactiveMessage)
 
 router.post('/admin/disable-junk-users', disableJunkUsers)
 router.post('/admin/reactivate-users', reactivateUsers)
+router.post('/admin/reset-onboarding', resetOnboarding)
 
 export default router

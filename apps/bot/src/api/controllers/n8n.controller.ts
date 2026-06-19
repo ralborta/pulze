@@ -497,6 +497,67 @@ export async function reactivateUsers(req: Request, res: Response) {
   }
 }
 
+function phoneLookupVariants(phone: string): string[] {
+  const s = phone.replace(/\D/g, '')
+  if (!s) return []
+  const v = new Set<string>()
+  v.add(s)
+  if (s.startsWith('54') && s.length >= 11) v.add(s.slice(2))
+  if (s.startsWith('54') && s.length === 12 && s[2] !== '9') v.add(`549${s.slice(2)}`)
+  if (!s.startsWith('54') && s.startsWith('9') && s.length >= 10 && s.length <= 11) v.add(`54${s}`)
+  return [...v]
+}
+
+/**
+ * POST /api/n8n/admin/reset-onboarding
+ * Body: { phones: string[], clearBuilderBot?: boolean }
+ * Vuelve onboardingComplete=false para que Inicio enrute a Registro.
+ */
+export async function resetOnboarding(req: Request, res: Response) {
+  try {
+    const phones = Array.isArray(req.body?.phones)
+      ? req.body.phones.filter((p: unknown): p is string => typeof p === 'string')
+      : []
+    if (!phones.length) {
+      return res.status(400).json({ error: 'phones requerido (array no vacío)' })
+    }
+    const clearBuilderBot = req.body?.clearBuilderBot !== false
+
+    const allPhones = new Set<string>()
+    for (const p of phones) {
+      for (const v of phoneLookupVariants(p)) allPhones.add(v)
+    }
+    const list = [...allPhones]
+
+    const result = await prisma.user.updateMany({
+      where: { phone: { in: list } },
+      data: { onboardingComplete: false },
+    })
+
+    const users = await prisma.user.findMany({
+      where: { phone: { in: list } },
+      select: { id: true, name: true, phone: true, onboardingComplete: true, botEnabled: true },
+    })
+
+    const builderBotCleared: string[] = []
+    if (clearBuilderBot) {
+      for (const u of users) {
+        const cleared = await builderBotClient.clearConversation(u.phone)
+        if (cleared.success) builderBotCleared.push(u.phone)
+      }
+    }
+
+    return res.json({
+      reset: result.count,
+      users,
+      builderBotCleared,
+    })
+  } catch (error: any) {
+    console.error('Error resetOnboarding:', error)
+    return res.status(500).json({ error: 'Error al resetear onboarding' })
+  }
+}
+
 /**
  * POST /api/n8n/admin/disable-junk-users
  * Body: { dryRun?: boolean, excludePhones?: string[], includePhones?: string[] }
