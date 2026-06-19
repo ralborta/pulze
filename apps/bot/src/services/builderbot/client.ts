@@ -17,6 +17,11 @@ export class BuilderBotClient {
   /** Base URL para envío de mensajes WhatsApp (wa-api.builderbot.app). */
   private messagesBaseURL: string
 
+  private getMessagesTimeoutMs(): number {
+    const raw = Number(process.env.BUILDERBOT_MESSAGES_TIMEOUT_MS)
+    return Number.isFinite(raw) && raw >= 5000 ? raw : 45000
+  }
+
   constructor() {
     this.apiKey = process.env.BUILDERBOT_API_KEY || ''
     this.botId = process.env.BUILDERBOT_BOT_ID || ''
@@ -47,7 +52,7 @@ export class BuilderBotClient {
     this.messagesClient = axios.create({
       baseURL: `${this.messagesBaseURL}/v1`.replace(/\/v1\/v1$/, '/v1'),
       headers: this.getMessagesAuthHeaders(),
-      timeout: 10000,
+      timeout: this.getMessagesTimeoutMs(),
     })
   }
 
@@ -202,7 +207,7 @@ export class BuilderBotClient {
         { number: '0000000000', messages: { content: '\u200B' } },
         {
           headers: { 'Content-Type': 'application/json', 'x-api-builderbot': this.apiKey },
-          timeout: 8000,
+          timeout: 20000,
           validateStatus: () => true,
         }
       )
@@ -286,7 +291,7 @@ export class BuilderBotClient {
         { number, messages: { content: params.message.trim() } },
         {
           headers: { 'Content-Type': 'application/json', 'x-api-builderbot': this.apiKey },
-          timeout: 15000,
+          timeout: this.getMessagesTimeoutMs(),
           validateStatus: () => true,
         }
       )

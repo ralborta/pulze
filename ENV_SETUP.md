@@ -21,6 +21,7 @@ BUILDERBOT_WEBHOOK_SECRET=""           # Opcional. Si usás verificación: gener
 BUILDERBOT_API_URL="https://app.builderbot.cloud/api/v2"  # URL para assistant plugin (default)
 BUILDERBOT_MESSAGES_API_URL="https://wa-api.builderbot.app"  # Envío saliente WhatsApp (proactivos, outbound)
 BUILDERBOT_DEVICE_ID=""  # Opcional. ID del dispositivo WA en BuilderBot si tenés varios números
+BUILDERBOT_MESSAGES_TIMEOUT_MS=45000  # Timeout envío proactivo (BB Cloud puede tardar tras reconectar WA)
 
 # JWT Authentication
 JWT_SECRET="your-secret-key-here-change-in-production"
