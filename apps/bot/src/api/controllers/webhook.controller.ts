@@ -248,7 +248,7 @@ export async function handleBuilderBotWebhook(req: Request, res: Response) {
 
     switch (ev.event) {
       case 'message':
-        await handleIncomingMessage(ev, res)
+        await handleIncomingMessage(ev, res, req)
         break
 
       case 'status':
@@ -270,7 +270,7 @@ export async function handleBuilderBotWebhook(req: Request, res: Response) {
 
       default:
         if (from && hasMessage) {
-          await handleIncomingMessage(ev, res)
+          await handleIncomingMessage(ev, res, req)
         } else {
           res.status(200).json({ received: true })
         }
@@ -329,6 +329,12 @@ function webhookPayload(
  */
 function shouldSendViaBuilderBotApi(): boolean {
   return process.env.PULZE_SEND_VIA_BUILDERBOT_API === 'true'
+}
+
+/** Inicio (patrón Wara): ?delivery=bb → BB envía {{message}}; Catch-all usa Pulze Cloud v2. */
+function builderBotDeliversToClient(req: Request): boolean {
+  const q = String(req.query.delivery ?? '').trim().toLowerCase()
+  return q === 'bb' || q === 'builderbot'
 }
 
 async function sendReplyViaBuilderBot(
@@ -391,7 +397,7 @@ function scheduleAfterInboundResponse(params: {
  * Manejar mensaje entrante
  * Acepta texto en event.message o event.body (BuilderBot puede usar cualquiera)
  */
-async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
+async function handleIncomingMessage(event: BuilderBotMessage, res: Response, req: Request) {
   const text = (event.message ?? event.body ?? '').trim()
   const phone = normalizePhone(event.from)
   const { intent, entities, type } = event
@@ -501,10 +507,17 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
     const onboardingReply = isSimpleGreeting(text) ? REGISTRO_GREETING : BB_REPLY
     const sendPhone = phone || normalizePhone(event.from)
-    if (onboardingReply !== BB_REPLY && onboardingReply.trim()) {
+    const bbDelivers = builderBotDeliversToClient(req)
+    if (!bbDelivers && onboardingReply !== BB_REPLY && onboardingReply.trim()) {
       await sendReplyViaBuilderBot(sendPhone, onboardingReply, { force: true })
     }
-    res.json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: true, nombre }))
+    res.json(
+      webhookPayload(bbDelivers ? onboardingReply : BB_REPLY, {
+        flow: 'onboarding',
+        registered: true,
+        nombre,
+      })
+    )
     void (async () => {
       try {
         await prisma.conversation.create({
@@ -599,9 +612,9 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     }
   }
 
-  // WhatsApp por Cloud v2 (AGENT/LID de BB roto). Enviar ANTES de cerrar HTTP (<30s).
   const sendPhone = phone || normalizePhone(event.from)
-  if (response !== BB_REPLY && response.trim()) {
+  const bbDelivers = builderBotDeliversToClient(req)
+  if (!bbDelivers && response !== BB_REPLY && response.trim()) {
     const sent = await sendReplyViaBuilderBot(sendPhone, response, { force: true })
     if (!sent.success) {
       console.error('❌ WhatsApp no enviado:', sent.error, { phone: sendPhone?.slice(0, 6) + '***' })
@@ -609,7 +622,7 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
   }
 
   res.json(
-    webhookPayload(BB_REPLY, {
+    webhookPayload(bbDelivers ? response : BB_REPLY, {
       flow: 'menu',
       registered: true,
       nombre: user.name,
