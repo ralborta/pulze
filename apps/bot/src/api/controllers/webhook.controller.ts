@@ -495,7 +495,10 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     const { nombre: onboardingNombre } = await handleOnboarding(user.id, text, intent)
     const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
     const onboardingReply = isSimpleGreeting(text) ? REGISTRO_GREETING : BB_REPLY
-    res.json(webhookPayload(onboardingReply, { flow: 'onboarding', registered: true, nombre }))
+    res.json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: true, nombre }))
+    if (onboardingReply !== BB_REPLY && onboardingReply.trim()) {
+      void sendReplyViaBuilderBot(phone, onboardingReply, { force: true })
+    }
     void (async () => {
       try {
         await prisma.conversation.create({
@@ -510,7 +513,6 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
           where: { userId: user.id },
           data: { messagesSent: { increment: 1 } },
         })
-        await sendReplyViaBuilderBot(phone, onboardingReply)
       } catch (err: unknown) {
         console.error('⚠️ onboarding side-effects falló:', (err as Error)?.message)
       }
@@ -591,15 +593,19 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     }
   }
 
-  // Responder YA: BuilderBot HTTP corta ~30s; messageMapping envía {{message}} al usuario.
+  // JSON vacío para BB (evita AGENT/LID roto); el texto va por Cloud v2 API.
   res.json(
-    webhookPayload(response, {
+    webhookPayload(BB_REPLY, {
       flow: 'menu',
       registered: true,
       nombre: user.name,
       hasUserText: true,
     })
   )
+
+  if (response !== BB_REPLY && response.trim()) {
+    void sendReplyViaBuilderBot(phone, response, { force: true })
+  }
 
   scheduleAfterInboundResponse({
     userId: user.id,
