@@ -29,6 +29,14 @@ function isSimpleGreeting(text: string): boolean {
   )
 }
 
+/** Respuesta corta a "¿Cómo venís hoy?" — no repetir saludo inicial. */
+function isMoodFollowUp(text: string): boolean {
+  const t = text.trim().toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
+  return /^(bien|mal|regular|maso menos|más o menos|mas o menos|ok|dale|genial|tranqui|a full|re mal|peor|meh|so so|maso|normal)$/.test(
+    t
+  )
+}
+
 /**
  * Tipos de eventos de BuilderBot
  * BuilderBot puede enviar el texto en "message" o en "body"
@@ -528,13 +536,18 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
   if (looksLikeCheckIn) {
     response = await handleCheckIn(user.id, text, entities, phone)
   } else if (looksLikeNutrition) {
-    await handleNutritionQuery(user, text, entities)
+    response =
+      '¿Querés ideas de comidas, revisar proteína o armar un plan? Contame qué necesitás 🥗'
   } else if (looksLikeTraining) {
-    await handleTrainingQuery(user, text, entities)
+    response =
+      '¿Qué querés trabajar hoy o qué duda de entreno tenés? Contame y te ayudo 💪'
   } else {
     await handleGeneralConversation(user, text, intent)
     if (isSimpleGreeting(text)) {
       response = SEGUIMIENTO_GREETING
+    } else if (isMoodFollowUp(text)) {
+      response =
+        '¡Genial! ¿Querés que veamos rutina 🏋️, alimentación 🥗 o tips de bienestar 🧘?'
     }
   }
 
@@ -732,7 +745,7 @@ async function handleOnboarding(
 }
 
 /**
- * Check-in: parsea, persiste en DB. El mensaje al usuario lo genera BuilderBot.
+ * Check-in: parsea, persiste en DB y devuelve confirmación al usuario (BuilderBot muestra {{message}}).
  */
 async function handleCheckIn(
   userId: string,
@@ -743,12 +756,12 @@ async function handleCheckIn(
   const parsed = parseCheckInMessage(message)
 
   if (!parsed) {
-    return BB_REPLY
+    return 'No pude leer el check-in. Mandame 3 datos: sueño (1-5), energía (1-5) y ánimo (una palabra). Ej: 4, 3, bien'
   }
 
   const alreadyToday = await checkInService.hasCheckInToday(userId)
   if (alreadyToday) {
-    return BB_REPLY
+    return 'Ya registré tu check-in de hoy ✅ ¿Querés rutina 🏋️, comida 🥗 o tips 🧘?'
   }
 
   const checkIn = await checkInService.create({
@@ -763,7 +776,8 @@ async function handleCheckIn(
   const streak = await checkInService.calculateStreak(userId)
   await userService.updateStreak(userId, streak)
 
-  let note = `Check-in OK · racha ${streak}d · S${parsed.sleep} E${parsed.energy} · ${parsed.mood}`
+  let response = `¡Check-in registrado! 🙌 Sueño ${parsed.sleep}/5 · Energía ${parsed.energy}/5 · Ánimo: ${parsed.mood}. Racha: ${streak}d`
+
   if (parsed.willTrain) {
     const routineResult = await adaptRoutineForUser({
       userId,
@@ -775,7 +789,7 @@ async function handleCheckIn(
       },
     })
     if (routineResult?.content) {
-      note += `\n\nRutina (plan estándar):\n${routineResult.content}`
+      response += `\n\nRutina:\n${routineResult.content}`
     }
     if (
       process.env.PULZE_ROUTINE_SEND_IMAGES === 'true' &&
@@ -802,10 +816,10 @@ async function handleCheckIn(
 
   await prisma.checkIn.update({
     where: { id: checkIn.id },
-    data: { aiResponse: note },
+    data: { aiResponse: response },
   })
 
-  return BB_REPLY
+  return response
 }
 
 async function handleNutritionQuery(user: any, message: string, entities?: Record<string, any>): Promise<void> {
