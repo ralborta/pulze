@@ -331,12 +331,6 @@ function shouldSendViaBuilderBotApi(): boolean {
   return process.env.PULZE_SEND_VIA_BUILDERBOT_API === 'true'
 }
 
-/** Inicio (patrón Wara): ?delivery=bb → BB envía {{message}}; Catch-all usa Pulze Cloud v2. */
-function builderBotDeliversToClient(req: Request): boolean {
-  const q = String(req.query.delivery ?? '').trim().toLowerCase()
-  return q === 'bb' || q === 'builderbot'
-}
-
 async function sendReplyViaBuilderBot(
   phone: string,
   message: string | null,
@@ -507,12 +501,11 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
     const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
     const onboardingReply = isSimpleGreeting(text) ? REGISTRO_GREETING : BB_REPLY
     const sendPhone = phone || normalizePhone(event.from)
-    const bbDelivers = builderBotDeliversToClient(req)
-    if (!bbDelivers && onboardingReply !== BB_REPLY && onboardingReply.trim()) {
+    if (onboardingReply !== BB_REPLY && onboardingReply.trim()) {
       await sendReplyViaBuilderBot(sendPhone, onboardingReply, { force: true })
     }
     res.json(
-      webhookPayload(bbDelivers ? onboardingReply : BB_REPLY, {
+      webhookPayload(onboardingReply, {
         flow: 'onboarding',
         registered: true,
         nombre,
@@ -613,8 +606,7 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
   }
 
   const sendPhone = phone || normalizePhone(event.from)
-  const bbDelivers = builderBotDeliversToClient(req)
-  if (!bbDelivers && response !== BB_REPLY && response.trim()) {
+  if (response !== BB_REPLY && response.trim()) {
     const sent = await sendReplyViaBuilderBot(sendPhone, response, { force: true })
     if (!sent.success) {
       console.error('❌ WhatsApp no enviado:', sent.error, { phone: sendPhone?.slice(0, 6) + '***' })
@@ -622,7 +614,7 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
   }
 
   res.json(
-    webhookPayload(bbDelivers ? response : BB_REPLY, {
+    webhookPayload(response, {
       flow: 'menu',
       registered: true,
       nombre: user.name,
