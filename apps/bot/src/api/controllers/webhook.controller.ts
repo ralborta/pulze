@@ -472,7 +472,9 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
       data: { messagesSent: { increment: 1 } },
     })
     if (onboardingReply !== BB_REPLY) {
-      await sendReplyViaBuilderBot(phone, onboardingReply, { force: true })
+      void sendReplyViaBuilderBot(phone, onboardingReply).catch((err: unknown) => {
+        console.error('⚠️ sendReplyViaBuilderBot falló:', (err as Error)?.message)
+      })
     }
     res.json(webhookPayload(onboardingReply, { flow: 'onboarding', registered: true, nombre }))
     return
@@ -585,14 +587,18 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     console.error('⚠️ analytics.create falló — se responde igual al webhook:', err?.message)
   }
 
-  try {
-    const forceOutbound = response !== BB_REPLY
-    await sendReplyViaBuilderBot(event.from, response, { force: forceOutbound })
-  } catch (err: any) {
-    console.error('⚠️ sendReplyViaBuilderBot falló:', err?.message)
-  }
+  const payload = webhookPayload(response, {
+    flow: 'menu',
+    registered: true,
+    nombre: user.name,
+    hasUserText: true,
+  })
+  res.json(payload)
 
-  res.json(webhookPayload(response, { flow: 'menu', registered: true, nombre: user.name }))
+  // BuilderBot envía con messageMapping; no bloquear la respuesta HTTP esperando outbound (BB tarda 15–30s).
+  void sendReplyViaBuilderBot(event.from, response).catch((err: unknown) => {
+    console.error('⚠️ sendReplyViaBuilderBot falló:', (err as Error)?.message)
+  })
 }
 
 /**
