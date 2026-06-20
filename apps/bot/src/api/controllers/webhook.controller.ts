@@ -346,6 +346,42 @@ async function sendReplyViaBuilderBot(
   }
 }
 
+/** Persistencia y analytics después de responder al webhook (no bloquear HTTP de BuilderBot). */
+function scheduleAfterInboundResponse(params: {
+  userId: string
+  text: string
+  response: string
+  intent?: string
+  entities?: Record<string, any>
+}): void {
+  void (async () => {
+    try {
+      await prisma.conversation.create({
+        data: {
+          userId: params.userId,
+          role: 'assistant',
+          message: params.response,
+          metadata: { intent: params.intent },
+        },
+      })
+      await contextUpdater.updateConversationSummary(params.userId, params.text, params.response)
+      await prisma.userStats.update({
+        where: { userId: params.userId },
+        data: { messagesSent: { increment: 1 } },
+      })
+      await prisma.analytics.create({
+        data: {
+          eventType: `message_${params.intent || 'general'}`,
+          userId: params.userId,
+          metadata: { intent: params.intent, entities: params.entities },
+        },
+      })
+    } catch (err: unknown) {
+      console.error('⚠️ scheduleAfterInboundResponse falló:', (err as Error)?.message)
+    }
+  })()
+}
+
 /**
  * Manejar mensaje entrante
  * Acepta texto en event.message o event.body (BuilderBot puede usar cualquiera)
@@ -459,24 +495,26 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     const { nombre: onboardingNombre } = await handleOnboarding(user.id, text, intent)
     const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
     const onboardingReply = isSimpleGreeting(text) ? REGISTRO_GREETING : BB_REPLY
-    await prisma.conversation.create({
-      data: {
-        userId: user.id,
-        role: 'assistant',
-        message: onboardingReply,
-        metadata: { intent, phase: 'onboarding' },
-      },
-    })
-    await prisma.userStats.update({
-      where: { userId: user.id },
-      data: { messagesSent: { increment: 1 } },
-    })
-    if (onboardingReply !== BB_REPLY) {
-      void sendReplyViaBuilderBot(phone, onboardingReply).catch((err: unknown) => {
-        console.error('⚠️ sendReplyViaBuilderBot falló:', (err as Error)?.message)
-      })
-    }
     res.json(webhookPayload(onboardingReply, { flow: 'onboarding', registered: true, nombre }))
+    void (async () => {
+      try {
+        await prisma.conversation.create({
+          data: {
+            userId: user.id,
+            role: 'assistant',
+            message: onboardingReply,
+            metadata: { intent, phase: 'onboarding' },
+          },
+        })
+        await prisma.userStats.update({
+          where: { userId: user.id },
+          data: { messagesSent: { increment: 1 } },
+        })
+        await sendReplyViaBuilderBot(phone, onboardingReply)
+      } catch (err: unknown) {
+        console.error('⚠️ onboarding side-effects falló:', (err as Error)?.message)
+      }
+    })()
     return
   }
 
@@ -553,51 +591,22 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     }
   }
 
-  await prisma.conversation.create({
-    data: {
-      userId: user.id,
-      role: 'assistant',
-      message: response,
-      metadata: { intent },
-    },
-  })
-
-  await contextUpdater.updateConversationSummary(user.id, text, response)
-
-  try {
-    await prisma.userStats.update({
-      where: { userId: user.id },
-      data: {
-        messagesSent: { increment: 1 },
-      },
+  // Responder YA: BuilderBot HTTP corta ~30s; messageMapping envía {{message}} al usuario.
+  res.json(
+    webhookPayload(response, {
+      flow: 'menu',
+      registered: true,
+      nombre: user.name,
+      hasUserText: true,
     })
-  } catch (err: any) {
-    console.error('⚠️ userStats.update (mensajes enviados) falló — se responde igual al webhook:', err?.message)
-  }
+  )
 
-  try {
-    await prisma.analytics.create({
-      data: {
-        eventType: `message_${intent || 'general'}`,
-        userId: user.id,
-        metadata: { intent, entities },
-      },
-    })
-  } catch (err: any) {
-    console.error('⚠️ analytics.create falló — se responde igual al webhook:', err?.message)
-  }
-
-  const payload = webhookPayload(response, {
-    flow: 'menu',
-    registered: true,
-    nombre: user.name,
-    hasUserText: true,
-  })
-  res.json(payload)
-
-  // BuilderBot envía con messageMapping; no bloquear la respuesta HTTP esperando outbound (BB tarda 15–30s).
-  void sendReplyViaBuilderBot(event.from, response).catch((err: unknown) => {
-    console.error('⚠️ sendReplyViaBuilderBot falló:', (err as Error)?.message)
+  scheduleAfterInboundResponse({
+    userId: user.id,
+    text,
+    response,
+    intent,
+    entities,
   })
 }
 
