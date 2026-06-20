@@ -335,15 +335,20 @@ async function sendReplyViaBuilderBot(
   phone: string,
   message: string | null,
   opts?: { force?: boolean }
-): Promise<void> {
-  if (!message?.trim() || message === BB_REPLY || !phone) return
-  if (!opts?.force && (!shouldSendViaBuilderBotApi() || !builderBotClient.canSend())) return
-  if (opts?.force && !builderBotClient.canSend()) return
+): Promise<{ success: boolean; error?: string }> {
+  if (!message?.trim() || message === BB_REPLY || !phone) return { success: true }
+  if (!opts?.force && (!shouldSendViaBuilderBotApi() || !builderBotClient.canSend())) {
+    return { success: true }
+  }
+  if (opts?.force && !builderBotClient.canSend()) {
+    return { success: false, error: 'BuilderBot outbound no configurado' }
+  }
   const to = phone.includes('+') ? phone : `+${phone}`
   const result = await builderBotClient.sendMessage({ phone: to, message })
   if (!result.success) {
     console.error('❌ BuilderBot sendMessage falló:', result.error, { phone: to.slice(0, 6) + '***' })
   }
+  return { success: result.success, error: result.error }
 }
 
 /** Persistencia y analytics después de responder al webhook (no bloquear HTTP de BuilderBot). */
@@ -495,13 +500,11 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     const { nombre: onboardingNombre } = await handleOnboarding(user.id, text, intent)
     const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
     const onboardingReply = isSimpleGreeting(text) ? REGISTRO_GREETING : BB_REPLY
-    res.json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: true, nombre }))
+    const sendPhone = phone || normalizePhone(event.from)
     if (onboardingReply !== BB_REPLY && onboardingReply.trim()) {
-      const sendPhone = phone || normalizePhone(event.from)
-      sendReplyViaBuilderBot(sendPhone, onboardingReply, { force: true }).catch((err: unknown) => {
-        console.error('❌ sendReplyViaBuilderBot (onboarding):', (err as Error)?.message)
-      })
+      await sendReplyViaBuilderBot(sendPhone, onboardingReply, { force: true })
     }
+    res.json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: true, nombre }))
     void (async () => {
       try {
         await prisma.conversation.create({
@@ -596,7 +599,15 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     }
   }
 
-  // JSON vacío para BB (avoidResponse=true); WhatsApp lo manda Pulze por Cloud v2.
+  // WhatsApp por Cloud v2 (AGENT/LID de BB roto). Enviar ANTES de cerrar HTTP (<30s).
+  const sendPhone = phone || normalizePhone(event.from)
+  if (response !== BB_REPLY && response.trim()) {
+    const sent = await sendReplyViaBuilderBot(sendPhone, response, { force: true })
+    if (!sent.success) {
+      console.error('❌ WhatsApp no enviado:', sent.error, { phone: sendPhone?.slice(0, 6) + '***' })
+    }
+  }
+
   res.json(
     webhookPayload(BB_REPLY, {
       flow: 'menu',
@@ -605,15 +616,6 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
       hasUserText: true,
     })
   )
-
-  if (response !== BB_REPLY && response.trim()) {
-    const sendPhone = phone || normalizePhone(event.from)
-    sendReplyViaBuilderBot(sendPhone, response, { force: true }).catch((err: unknown) => {
-      console.error('❌ sendReplyViaBuilderBot (inbound):', (err as Error)?.message, {
-        phone: sendPhone?.slice(0, 6) + '***',
-      })
-    })
-  }
 
   scheduleAfterInboundResponse({
     userId: user.id,
