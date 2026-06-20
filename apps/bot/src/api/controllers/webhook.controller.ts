@@ -149,11 +149,11 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
 
   const from = firstValidPhone(
     data.from,
-    raw.from,
     data.phone,
+    raw.from,
+    raw.phone,
     data.sender,
     data.wa_id,
-    raw.phone,
     raw.sender
   )
 
@@ -497,7 +497,10 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     const onboardingReply = isSimpleGreeting(text) ? REGISTRO_GREETING : BB_REPLY
     res.json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: true, nombre }))
     if (onboardingReply !== BB_REPLY && onboardingReply.trim()) {
-      void sendReplyViaBuilderBot(phone, onboardingReply, { force: true })
+      const sendPhone = phone || normalizePhone(event.from)
+      sendReplyViaBuilderBot(sendPhone, onboardingReply, { force: true }).catch((err: unknown) => {
+        console.error('❌ sendReplyViaBuilderBot (onboarding):', (err as Error)?.message)
+      })
     }
     void (async () => {
       try {
@@ -593,7 +596,7 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
     }
   }
 
-  // JSON vacío para BB (evita AGENT/LID roto); el texto va por Cloud v2 API.
+  // JSON vacío para BB (avoidResponse=true); WhatsApp lo manda Pulze por Cloud v2.
   res.json(
     webhookPayload(BB_REPLY, {
       flow: 'menu',
@@ -604,7 +607,12 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response) {
   )
 
   if (response !== BB_REPLY && response.trim()) {
-    void sendReplyViaBuilderBot(phone, response, { force: true })
+    const sendPhone = phone || normalizePhone(event.from)
+    sendReplyViaBuilderBot(sendPhone, response, { force: true }).catch((err: unknown) => {
+      console.error('❌ sendReplyViaBuilderBot (inbound):', (err as Error)?.message, {
+        phone: sendPhone?.slice(0, 6) + '***',
+      })
+    })
   }
 
   scheduleAfterInboundResponse({
