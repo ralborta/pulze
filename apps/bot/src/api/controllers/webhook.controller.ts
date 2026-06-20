@@ -465,8 +465,10 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
     const fresh = created ? await userService.findByPhone(phone) : null
     const nombreNuevo =
       fresh?.name && fresh.name !== 'pendiente' ? fresh.name : null
-    console.log('🆕 Usuario nuevo → flujo onboarding (copy en BuilderBot)')
-    return res.json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: false, nombre: nombreNuevo }))
+    console.log('🆕 Usuario nuevo → flujo onboarding')
+    return res.json(
+      webhookPayload(REGISTRO_GREETING, { flow: 'onboarding', registered: false, nombre: nombreNuevo })
+    )
   }
 
   // Si no completó onboarding → opcionalmente limpiar historial en BuilderBot (solo al primer mensaje
@@ -500,10 +502,6 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
     const { nombre: onboardingNombre } = await handleOnboarding(user.id, text, intent)
     const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
     const onboardingReply = isSimpleGreeting(text) ? REGISTRO_GREETING : BB_REPLY
-    const sendPhone = phone || normalizePhone(event.from)
-    if (onboardingReply !== BB_REPLY && onboardingReply.trim()) {
-      await sendReplyViaBuilderBot(sendPhone, onboardingReply, { force: true })
-    }
     res.json(
       webhookPayload(onboardingReply, {
         flow: 'onboarding',
@@ -605,14 +603,8 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
     }
   }
 
-  const sendPhone = phone || normalizePhone(event.from)
-  if (response !== BB_REPLY && response.trim()) {
-    const sent = await sendReplyViaBuilderBot(sendPhone, response, { force: true })
-    if (!sent.success) {
-      console.error('❌ WhatsApp no enviado:', sent.error, { phone: sendPhone?.slice(0, 6) + '***' })
-    }
-  }
-
+  // Patrón Wara: BuilderBot envía {message} al cliente (avoidResponse OFF en BB).
+  // No outbound desde Easypanel: Cloud v2 desde prod hace timeout (~30s).
   res.json(
     webhookPayload(response, {
       flow: 'menu',
