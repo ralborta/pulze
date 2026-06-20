@@ -305,18 +305,23 @@ function webhookPayload(
   registered: boolean
   registered_s: string
   route: string
+  /** Alias estilo Wara para reglas HTTP en BuilderBot */
+  nextFlow_s: string
   nombre: string
   hasUserText: boolean
 } {
   const isPlaceholderName = (n: string | null | undefined) =>
     !n || n === 'pendiente' || /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(n)
   const nombre = opts.nombre && !isPlaceholderName(opts.nombre) ? opts.nombre : ''
+  const route =
+    opts.flow === 'menu' || opts.flow === 'operator' ? 'seguimiento' : 'registro'
   return {
     message: message ?? '',
     flow: opts.flow,
     registered: opts.registered,
     registered_s: opts.registered ? 'true' : 'false',
-    route: opts.flow === 'menu' || opts.flow === 'operator' ? 'seguimiento' : 'registro',
+    route,
+    nextFlow_s: route,
     nombre,
     /** false cuando no hubo texto de usuario (p. ej. ping de BuilderBot). No usar `flow` para saltar de módulo en ese caso. */
     hasUserText: opts.hasUserText !== false,
