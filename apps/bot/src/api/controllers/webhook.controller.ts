@@ -523,7 +523,6 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
     const nombreNuevo =
       fresh?.name && fresh.name !== 'pendiente' ? fresh.name : null
     console.log('🆕 Usuario nuevo → flujo onboarding')
-    await sendReplyViaBuilderBot(phone, REGISTRO_GREETING, { force: true })
     return res.json(
       webhookPayload(REGISTRO_GREETING, { flow: 'onboarding', registered: false, nombre: nombreNuevo })
     )
@@ -560,9 +559,6 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
     const { nombre: onboardingNombre } = await handleOnboarding(user.id, text, intent)
     const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
     const onboardingReply = isSimpleGreeting(text) ? REGISTRO_GREETING : BB_REPLY
-    if (onboardingReply !== BB_REPLY && onboardingReply.trim()) {
-      await sendReplyViaBuilderBot(phone, onboardingReply, { force: true })
-    }
     res.json(
       webhookPayload(onboardingReply, {
         flow: 'onboarding',
@@ -664,14 +660,8 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
     }
   }
 
-  // Pulze envía WhatsApp por Cloud v2 (BB AGENT falla con LID not found en proyecto Pulze).
+  // Patrón Wara: BB envía {message} al cliente (avoidResponse OFF en BB).
   const coachRoute = detectCoachRoute(text, intent)
-  if (response !== BB_REPLY && response.trim()) {
-    const sent = await sendReplyViaBuilderBot(phone, response, { force: true })
-    if (!sent.success) {
-      console.error('❌ WhatsApp Cloud v2 falló:', sent.error, { phone: phone.slice(0, 6) + '***' })
-    }
-  }
   res.json(
     webhookPayload(response, {
       flow: 'menu',
