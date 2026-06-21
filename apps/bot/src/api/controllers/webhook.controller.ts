@@ -376,6 +376,15 @@ function shouldSendViaBuilderBotApi(): boolean {
   return process.env.PULZE_SEND_VIA_BUILDERBOT_API === 'true'
 }
 
+/** Entrega WhatsApp vía BB Cloud v2. El AGENT interno de BB falla (LID); Pulze solo devuelve JSON. */
+async function deliverWhatsAppReply(phone: string, message: string | null): Promise<void> {
+  if (!message?.trim() || message === BB_REPLY || !phone) return
+  const sent = await sendReplyViaBuilderBot(phone, message, { force: true, timeoutMs: 12000 })
+  if (!sent.success) {
+    console.error('❌ Entrega WhatsApp (BB Cloud v2):', sent.error, { phone: phone.slice(0, 6) + '***' })
+  }
+}
+
 async function sendReplyViaBuilderBot(
   phone: string,
   message: string | null,
@@ -522,6 +531,7 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
     const nombreNuevo =
       fresh?.name && fresh.name !== 'pendiente' ? fresh.name : null
     console.log('🆕 Usuario nuevo → flujo onboarding')
+    await deliverWhatsAppReply(phone, REGISTRO_GREETING)
     return res.json(
       webhookPayload(REGISTRO_GREETING, { flow: 'onboarding', registered: false, nombre: nombreNuevo })
     )
@@ -558,6 +568,7 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
     const { nombre: onboardingNombre } = await handleOnboarding(user.id, text, intent)
     const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
     const onboardingReply = isSimpleGreeting(text) ? REGISTRO_GREETING : BB_REPLY
+    await deliverWhatsAppReply(phone, onboardingReply)
     res.json(
       webhookPayload(onboardingReply, {
         flow: 'onboarding',
@@ -659,8 +670,8 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
     }
   }
 
-  // Patrón Wara: BB envía {message} al cliente (avoidResponse OFF en BB).
   const coachRoute = detectCoachRoute(text, intent)
+  await deliverWhatsAppReply(phone, response)
   res.json(
     webhookPayload(response, {
       flow: 'menu',
