@@ -195,9 +195,8 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
 
 /**
  * POST /api/webhooks/builderbot  (alias POST /api/bot/inbound)
- * Pulze persiste datos y devuelve JSON; **BuilderBot envía WhatsApp** con `{message}`.
- * Inicio en BB usa POST /api/bot/context (solo registered_s / route, avoidResponse ON).
- * Seguimiento y Catch-all usan este inbound con avoidResponse OFF.
+ * Pulze persiste datos y devuelve JSON (registered_s, route, nextFlow_s, message).
+ * BuilderBot HTTP: avoidResponse ON → solo enruta. WhatsApp lo envía BuilderBot Cloud v2 desde Pulze.
  */
 export async function handleBuilderBotWebhook(req: Request, res: Response) {
   try {
@@ -374,11 +373,24 @@ function webhookPayload(
 }
 
 /**
- * Envía la respuesta por la API de BuilderBot solo si PULZE_SEND_VIA_BUILDERBOT_API=true.
- * Por defecto solo devolvemos el JSON del webhook y BuilderBot envía al cliente con la variable "message".
+ * Entrega WhatsApp vía BuilderBot Cloud v2 (POST /api/v2/{botId}/messages).
+ * messageMapping/AGENT en BB falla con LID not found; Cloud v2 sí entrega.
+ * Desactivar solo con PULZE_SEND_VIA_BUILDERBOT_API=false.
  */
+function shouldDeliverViaBuilderBotCloud(): boolean {
+  if (process.env.PULZE_SEND_VIA_BUILDERBOT_API === 'false') return false
+  return builderBotClient.canSend()
+}
+
 function shouldSendViaBuilderBotApi(): boolean {
-  return process.env.PULZE_SEND_VIA_BUILDERBOT_API === 'true'
+  return shouldDeliverViaBuilderBotCloud()
+}
+
+/** Envía el texto al usuario por BuilderBot Cloud (no bloquea el HTTP de inbound). */
+function deliverWhatsAppReply(phone: string, message: string | null): void {
+  if (!shouldDeliverViaBuilderBotCloud()) return
+  if (!message?.trim() || message === BB_REPLY || !phone) return
+  void sendReplyViaBuilderBot(phone, message, { force: true })
 }
 
 async function sendReplyViaBuilderBot(
@@ -529,9 +541,11 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
     const nombreNuevo =
       fresh?.name && fresh.name !== 'pendiente' ? fresh.name : null
     console.log('🆕 Usuario nuevo → flujo onboarding')
-    return res.json(
+    res.json(
       webhookPayload(REGISTRO_GREETING, { flow: 'onboarding', registered: false, nombre: nombreNuevo })
     )
+    deliverWhatsAppReply(phone, REGISTRO_GREETING)
+    return
   }
 
   // Si no completó onboarding → opcionalmente limpiar historial en BuilderBot (solo al primer mensaje
@@ -572,6 +586,7 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
         nombre,
       })
     )
+    deliverWhatsAppReply(phone, onboardingReply)
     void (async () => {
       try {
         await prisma.conversation.create({
@@ -676,6 +691,7 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
       route: coachRoute,
     })
   )
+  deliverWhatsAppReply(phone, response)
 
   scheduleAfterInboundResponse({
     userId: user.id,
