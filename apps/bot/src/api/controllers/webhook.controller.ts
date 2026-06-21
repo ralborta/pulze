@@ -296,9 +296,49 @@ function normalizePhone(phone: string): string {
  * IMPORTANTE: nombre y message se envían como string vacío (no null) cuando no hay valor,
  * para evitar que BuilderBot concatene "null" en plantillas (ej. {{nombre}}{{flow}}).
  */
+/** Ruta de coach para reglas HTTP en Seguimiento / Catch-all (estilo Wara nextFlow_s). */
+function detectCoachRoute(text: string, intent?: string): string {
+  const lower = text
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+  if (
+    intent === 'consulta_tips' ||
+    /\b(meditaci[oó]n|mindfulness|relajaci[oó]n|respiraci[oó]n|calma|estr[eé]s|ansiedad|gratitud|bienestar mental|tips)\b/.test(
+      lower
+    )
+  ) {
+    return 'tips'
+  }
+  if (
+    intent === 'consulta_entreno' ||
+    /\b(rutina|ejercicio|entrenar|gym|musculaci[oó]n|cardio|pesas|repeticiones|series|estiramiento)\b/.test(
+      lower
+    )
+  ) {
+    return 'rutina'
+  }
+  if (
+    intent === 'consulta_nutricion' ||
+    /\b(comida|dieta|nutrici[oó]n|calor[ií]as|prote[ií]na|carbohidratos|grasas|comer|alimentaci[oó]n|macros|receta|men[uú])\b/.test(
+      lower
+    )
+  ) {
+    return 'nutricion'
+  }
+  return 'seguimiento'
+}
+
 function webhookPayload(
   message: string | null,
-  opts: { flow: string; registered: boolean; nombre?: string | null; hasUserText?: boolean }
+  opts: {
+    flow: string
+    registered: boolean
+    nombre?: string | null
+    hasUserText?: boolean
+    route?: string
+  }
 ): {
   message: string
   flow: string
@@ -314,7 +354,8 @@ function webhookPayload(
     !n || n === 'pendiente' || /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(n)
   const nombre = opts.nombre && !isPlaceholderName(opts.nombre) ? opts.nombre : ''
   const route =
-    opts.flow === 'menu' || opts.flow === 'operator' ? 'seguimiento' : 'registro'
+    opts.route ??
+    (opts.flow === 'menu' || opts.flow === 'operator' ? 'seguimiento' : 'registro')
   return {
     message: message ?? '',
     flow: opts.flow,
@@ -608,14 +649,15 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
     }
   }
 
-  // Patrón Wara: BuilderBot envía {message} al cliente (avoidResponse OFF en BB).
-  // No outbound desde Easypanel: Cloud v2 desde prod hace timeout (~30s).
+  // Patrón Wara: BB envía {message} y enruta por route/nextFlow_s del JSON.
+  const coachRoute = detectCoachRoute(text, intent)
   res.json(
     webhookPayload(response, {
       flow: 'menu',
       registered: true,
       nombre: user.name,
       hasUserText: true,
+      route: coachRoute,
     })
   )
 
