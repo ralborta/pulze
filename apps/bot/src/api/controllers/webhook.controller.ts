@@ -443,9 +443,16 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
   const { intent, entities, type } = event
 
   if (!phone) {
-    // Sin teléfono (ej. prueba del panel de BuilderBot con @from sin resolver):
+    // Sin teléfono (ej. prueba del panel BB con @from/{from} sin resolver):
     console.warn('⚠️ Webhook sin "from" válido (posiblemente prueba de BuilderBot):', event.from)
-    return res.status(200).json(webhookPayload(BB_REPLY, { flow: 'onboarding', registered: false, nombre: null }))
+    return res.status(200).json(
+      webhookPayload(BB_REPLY, {
+        flow: 'onboarding',
+        registered: false,
+        nombre: null,
+        hasUserText: !!text,
+      })
+    )
   }
 
   // Sin texto útil: no crear usuario, no tocar DB ni onboarding. Evita “avanzar” por webhooks vacíos
@@ -512,6 +519,7 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
     const nombreNuevo =
       fresh?.name && fresh.name !== 'pendiente' ? fresh.name : null
     console.log('🆕 Usuario nuevo → flujo onboarding')
+    await sendReplyViaBuilderBot(phone, REGISTRO_GREETING, { force: true })
     return res.json(
       webhookPayload(REGISTRO_GREETING, { flow: 'onboarding', registered: false, nombre: nombreNuevo })
     )
@@ -548,6 +556,9 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
     const { nombre: onboardingNombre } = await handleOnboarding(user.id, text, intent)
     const nombre = onboardingNombre || ((await userService.findById(user.id))?.name ?? user.name)
     const onboardingReply = isSimpleGreeting(text) ? REGISTRO_GREETING : BB_REPLY
+    if (onboardingReply !== BB_REPLY && onboardingReply.trim()) {
+      await sendReplyViaBuilderBot(phone, onboardingReply, { force: true })
+    }
     res.json(
       webhookPayload(onboardingReply, {
         flow: 'onboarding',
@@ -649,8 +660,14 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
     }
   }
 
-  // Patrón Wara: BB envía {message} y enruta por route/nextFlow_s del JSON.
+  // Pulze envía WhatsApp por Cloud v2 (BB AGENT falla con LID not found en proyecto Pulze).
   const coachRoute = detectCoachRoute(text, intent)
+  if (response !== BB_REPLY && response.trim()) {
+    const sent = await sendReplyViaBuilderBot(phone, response, { force: true })
+    if (!sent.success) {
+      console.error('❌ WhatsApp Cloud v2 falló:', sent.error, { phone: phone.slice(0, 6) + '***' })
+    }
+  }
   res.json(
     webhookPayload(response, {
       flow: 'menu',
