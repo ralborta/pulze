@@ -194,11 +194,10 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
 }
 
 /**
- * POST /api/webhooks/builderbot
- * Recibe mensajes de WhatsApp procesados por BuilderBot.
- * Por defecto solo devolvemos JSON (message, flow, registered, nombre); BuilderBot envía al cliente
- * usando la variable "message" en su flujo. Para que PULZE también envíe por API, usar
- * PULZE_SEND_VIA_BUILDERBOT_API=true.
+ * POST /api/webhooks/builderbot  (alias POST /api/bot/inbound)
+ * Pulze persiste datos y devuelve JSON; **BuilderBot envía WhatsApp** con `{message}`.
+ * Inicio en BB usa POST /api/bot/context (solo registered_s / route, avoidResponse ON).
+ * Seguimiento y Catch-all usan este inbound con avoidResponse OFF.
  */
 export async function handleBuilderBotWebhook(req: Request, res: Response) {
   try {

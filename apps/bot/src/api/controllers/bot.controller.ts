@@ -461,9 +461,17 @@ export async function getUserContext(req: Request, res: Response) {
      * Usar `registered_s` en las reglas (p. ej. conditionRule registered_s, ===, true/false).
      */
     const registered_s = registered ? 'true' : 'false'
-    /** Despachador Inicio: regla HTTP `route` + `===` evita ambigüedad con tipos JSON. */
+    /** Despachador Inicio (estilo Wara nextFlow_s): solo enruta; BB envía mensajes en Seguimiento. */
     const route = registered ? 'seguimiento' : 'registro'
-    return res.json({ registered, registered_s, route, userExists, onboardingComplete, phone })
+    return res.json({
+      registered,
+      registered_s,
+      route,
+      nextFlow_s: route,
+      userExists,
+      onboardingComplete,
+      phone,
+    })
   } catch (error: any) {
     console.error('Error getUserContext:', error)
     return res.status(500).json({ error: 'Error al obtener contexto del usuario' })
@@ -472,7 +480,8 @@ export async function getUserContext(req: Request, res: Response) {
 
 /**
  * POST /api/bot/context
- * Igual que GET …/users/:phone/context pero con teléfono en el body (BuilderBot sustituye @from en JSON más fiable que en la URL).
+ * Solo validación de registro (estilo Wara check): registered / registered_s / route.
+ * Sin `{message}` — BuilderBot enruta a Seguimiento o Registro; no envía texto aquí.
  * Body: { "phone": "@from" } o { "from": "@from" }
  */
 export async function postBotContext(req: Request, res: Response) {
