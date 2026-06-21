@@ -380,7 +380,7 @@ function shouldSendViaBuilderBotApi(): boolean {
 async function sendReplyViaBuilderBot(
   phone: string,
   message: string | null,
-  opts?: { force?: boolean }
+  opts?: { force?: boolean; timeoutMs?: number }
 ): Promise<{ success: boolean; error?: string }> {
   if (!message?.trim() || message === BB_REPLY || !phone) return { success: true }
   if (!opts?.force && (!shouldSendViaBuilderBotApi() || !builderBotClient.canSend())) {
@@ -390,7 +390,11 @@ async function sendReplyViaBuilderBot(
     return { success: false, error: 'BuilderBot outbound no configurado' }
   }
   const to = phone.includes('+') ? phone : `+${phone}`
-  const result = await builderBotClient.sendMessage({ phone: to, message })
+  const result = await builderBotClient.sendMessage({
+    phone: to,
+    message,
+    timeoutMs: opts?.timeoutMs ?? 12000,
+  })
   if (!result.success) {
     console.error('❌ BuilderBot sendMessage falló:', result.error, { phone: to.slice(0, 6) + '***' })
   }

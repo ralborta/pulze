@@ -10,12 +10,26 @@ import { decodePhonePathSegment, isPlaceholder, sanitizePhone } from '../../util
 /**
  * GET /api/bot/health
  */
-export async function getBotHealth(_req: Request, res: Response) {
+export async function getBotHealth(req: Request, res: Response) {
   const whatsappOutbound = builderBotClient.getSendDiagnostics()
-  const [waApiProbe, cloudV2Probe] = await Promise.all([
-    builderBotClient.probeWaApiAuth(),
-    builderBotClient.probeCloudV2Auth(),
-  ])
+  const runProbes = req.query.probe === '1' || req.query.full === '1'
+
+  let waApiProbe: Awaited<ReturnType<typeof builderBotClient.probeWaApiAuth>> = {
+    ok: true,
+    skipped: true,
+    error: 'Omitido (usar ?probe=1 para probar outbound)',
+  }
+  let cloudV2Probe: Awaited<ReturnType<typeof builderBotClient.probeCloudV2Auth>> = {
+    ok: true,
+    skipped: true,
+    error: 'Omitido (usar ?probe=1 para probar outbound)',
+  }
+  if (runProbes) {
+    ;[waApiProbe, cloudV2Probe] = await Promise.all([
+      builderBotClient.probeWaApiAuth(),
+      builderBotClient.probeCloudV2Auth(),
+    ])
+  }
 
   res.json({
     status: 'ok',

@@ -261,6 +261,7 @@ export class BuilderBotClient {
     phone: string
     message: string
     buttons?: Array<{ id: string; text: string }>
+    timeoutMs?: number
   }): Promise<{ success: boolean; messageId?: string; error?: string }> {
     if (!this.canSend()) {
       return {
@@ -281,6 +282,7 @@ export class BuilderBotClient {
   private async sendMessageViaCloudV2(params: {
     phone: string
     message: string
+    timeoutMs?: number
   }): Promise<{ success: boolean; messageId?: string; error?: string }> {
     const number = this.formatPhoneDigits(params.phone)
     if (!number) return { success: false, error: 'Número vacío' }
@@ -291,7 +293,7 @@ export class BuilderBotClient {
         { number, messages: { content: params.message.trim() } },
         {
           headers: { 'Content-Type': 'application/json', 'x-api-builderbot': this.apiKey },
-          timeout: this.getMessagesTimeoutMs(),
+          timeout: params.timeoutMs ?? this.getMessagesTimeoutMs(),
           validateStatus: () => true,
         }
       )
