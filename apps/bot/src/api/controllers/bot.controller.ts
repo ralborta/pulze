@@ -34,6 +34,7 @@ export async function getBotHealth(req: Request, res: Response) {
   res.json({
     status: 'ok',
     service: 'pulze-bot-api',
+    deploy: '5ec25d8',
     timestamp: new Date().toISOString(),
     whatsappOutbound,
     waApiProbe,
