@@ -67,6 +67,26 @@ function isValidPhonePathSegment(s: string): boolean {
   return /^\d{8,20}$/.test(s)
 }
 
+/**
+ * Teléfono desde body HTTP de BuilderBot (POST /context, /inbound vía plugin).
+ * Ignora placeholders sin resolver (@from, {from}) y prueba raíz + data.* como el webhook.
+ */
+function phoneFromBuilderBotBody(body: unknown, pathOrQueryPhone?: string): { phone: string; rawSeen: string } {
+  const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>
+  const data = (b.data && typeof b.data === 'object' ? b.data : {}) as Record<string, unknown>
+  const candidates: unknown[] = [b.from, b.phone, data.from, data.phone, pathOrQueryPhone]
+  let rawSeen = ''
+  for (const c of candidates) {
+    if (c == null || c === '') continue
+    const raw = decodePhonePathSegment(String(c))
+    if (!rawSeen) rawSeen = raw
+    if (isPlaceholder(raw)) continue
+    const phone = sanitizePhone(raw)
+    if (phone && isValidPhonePathSegment(phone)) return { phone, rawSeen: raw }
+  }
+  return { phone: '', rawSeen: rawSeen || decodePhonePathSegment(String(pathOrQueryPhone ?? '')) }
+}
+
 function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
@@ -419,9 +439,29 @@ export async function getUserContext(req: Request, res: Response) {
         : typeof req.query.from === 'string'
           ? req.query.from
           : undefined
+    const fromBody = phoneFromBuilderBotBody(req.body, req.params.phone)
+    if (fromBody.phone) {
+      const phone = fromBody.phone
+      const user = await userService.findByPhone(phone)
+      const userExists = !!user
+      const onboardingComplete = !!(user?.onboardingComplete)
+      const registered = onboardingComplete
+      const registered_s = registered ? 'true' : 'false'
+      const route = registered ? 'seguimiento' : 'registro'
+      return res.json({
+        registered,
+        registered_s,
+        route,
+        nextFlow_s: route,
+        userExists,
+        onboardingComplete,
+        phone,
+      })
+    }
+
     let raw = queryPhone ? decodePhonePathSegment(queryPhone) : ''
     if (!raw || isPlaceholder(raw)) {
-      raw = decodePhonePathSegment(req.params.phone || '')
+      raw = decodePhonePathSegment(req.params.phone || '') || fromBody.rawSeen
     }
     if (!raw) {
       return res.status(400).json({ error: 'Teléfono inválido o faltante' })
@@ -433,10 +473,10 @@ export async function getUserContext(req: Request, res: Response) {
         userExists: false,
         onboardingComplete: false,
         phone: '',
-        /** Para reglas HTTP en Inicio: `route === "registro"` | `=== "seguimiento"` (más estable que boolean). */
         route: 'registro',
-        /** Lo que llegó en el path (ej. "@from"): si ves esto, BuilderBot no sustituyó la variable en la URL. */
-        receivedInPath: raw,
+        nextFlow_s: 'registro',
+        /** BuilderBot no sustituyó @from / {from} — revisá sintaxis en el nodo HTTP. */
+        receivedFrom: raw,
       })
     }
     const phone = sanitizePhone(raw)
@@ -485,9 +525,15 @@ export async function getUserContext(req: Request, res: Response) {
  * Body: { "phone": "@from" } o { "from": "@from" }
  */
 export async function postBotContext(req: Request, res: Response) {
-  const fromBody = req.body?.phone ?? req.body?.from
-  if (fromBody != null && String(fromBody).trim()) {
-    req.params = { ...req.params, phone: String(fromBody) }
+  const body = req.body || {}
+  const extracted = phoneFromBuilderBotBody(body)
+  if (extracted.phone) {
+    req.params = { ...req.params, phone: extracted.phone }
+  } else {
+    const raw = body.from ?? body.phone
+    if (raw != null && String(raw).trim()) {
+      req.params = { ...req.params, phone: String(raw) }
+    }
   }
   return getUserContext(req, res)
 }

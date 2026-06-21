@@ -148,16 +148,18 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
   else if (eventNameRaw.includes('media')) event = 'media'
 
   const from = firstValidPhone(
-    data.from,
-    data.phone,
     raw.from,
     raw.phone,
+    data.from,
+    data.phone,
     data.sender,
     data.wa_id,
     raw.sender
   )
 
   const message = firstValidMessage(
+    raw.body,
+    raw.message,
     data.body,
     data.message,
     data.keyword,
@@ -166,8 +168,6 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
     data.text,
     data.content,
     data.value,
-    raw.message,
-    raw.body,
     raw.value
   )
 
@@ -337,6 +337,7 @@ function webhookPayload(
     nombre?: string | null
     hasUserText?: boolean
     route?: string
+    receivedFrom?: string
   }
 ): {
   message: string
@@ -348,6 +349,7 @@ function webhookPayload(
   nextFlow_s: string
   nombre: string
   hasUserText: boolean
+  receivedFrom?: string
 } {
   const isPlaceholderName = (n: string | null | undefined) =>
     !n || n === 'pendiente' || /^@\w+$|^\{\{\s*\w+\s*\}\}$/.test(n)
@@ -365,6 +367,9 @@ function webhookPayload(
     nombre,
     /** false cuando no hubo texto de usuario (p. ej. ping de BuilderBot). No usar `flow` para saltar de módulo en ese caso. */
     hasUserText: opts.hasUserText !== false,
+    ...(opts.receivedFrom != null && opts.receivedFrom !== ''
+      ? { receivedFrom: opts.receivedFrom }
+      : {}),
   }
 }
 
@@ -446,14 +451,16 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
   const { intent, entities, type } = event
 
   if (!phone) {
-    // Sin teléfono (ej. prueba del panel BB con @from/{from} sin resolver):
-    console.warn('⚠️ Webhook sin "from" válido (posiblemente prueba de BuilderBot):', event.from)
+    const rawFrom = event.from ?? req.body?.from ?? req.body?.data?.from
+    console.warn('⚠️ Webhook sin "from" válido (posiblemente @from/{from} sin resolver):', rawFrom)
     return res.status(200).json(
       webhookPayload(BB_REPLY, {
         flow: 'onboarding',
         registered: false,
+        route: 'registro',
         nombre: null,
         hasUserText: !!text,
+        receivedFrom: rawFrom != null ? String(rawFrom) : '',
       })
     )
   }
