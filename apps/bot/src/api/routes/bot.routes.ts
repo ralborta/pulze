@@ -7,6 +7,7 @@ import {
   getCoachingContext,
   postBotContext,
   postBotCheck,
+  postBotCheckByPhone,
   postCoachingContext,
   postCompleteOnboarding,
   getMagicLink,
@@ -24,22 +25,32 @@ const router = Router()
 router.get('/health', getBotHealth)
 
 /**
+ * POST /api/bot/check
+ * Inicio BuilderBot: solo verifica registro. Teléfono en body, query o path /users/:phone/check.
+ */
+router.post('/check', requireApiKey, postBotCheck)
+
+/**
+ * POST /api/bot/users/:phone/check
+ * Preferido en BuilderBot: {from} en la URL (Constanza usa ?phone={from}).
+ */
+router.post('/users/:phone/check', requireApiKey, postBotCheckByPhone)
+
+/**
  * POST /api/bot/inbound
- * Misma lógica que POST /api/webhooks/builderbot (BuilderBot → PULZE).
  */
 router.post('/inbound', handleBuilderBotWebhook)
 
 /**
- * GET /api/bot/users/:phone/context
- * Estado del usuario para ramificar en BuilderBot. Requiere X-API-Key (API_KEY / N8N_API_KEY, cualquiera configurada).
+ * POST /api/bot/users/:phone/inbound
+ * Mismo handler; teléfono en path cuando BB no resuelve {from} en el body JSON.
  */
-router.get('/users/:phone/context', requireApiKey, getUserContext)
+router.post('/users/:phone/inbound', requireApiKey, handleBuilderBotWebhook)
 
 /**
- * POST /api/bot/check
- * Inicio BuilderBot (estilo Wara check): message + nextFlow_s. Requiere X-API-Key.
+ * GET /api/bot/users/:phone/context
  */
-router.post('/check', requireApiKey, postBotCheck)
+router.get('/users/:phone/context', requireApiKey, getUserContext)
 
 /**
  * POST /api/bot/context

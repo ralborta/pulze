@@ -34,7 +34,7 @@ export async function getBotHealth(req: Request, res: Response) {
   res.json({
     status: 'ok',
     service: 'pulze-bot-api',
-    deploy: 'check-debug',
+    deploy: 'phone-in-url',
     timestamp: new Date().toISOString(),
     whatsappOutbound,
     waApiProbe,
@@ -537,17 +537,36 @@ export async function getUserContext(req: Request, res: Response) {
  * BB: avoidResponse true en Inicio; el copy lo manda Seguimiento o Registro.
  */
 export async function postBotCheck(req: Request, res: Response) {
+  return runBotCheck(req, res)
+}
+
+/** POST /api/bot/users/:phone/check — teléfono en la URL (BuilderBot sustituye {from} en la URL). */
+export async function postBotCheckByPhone(req: Request, res: Response) {
+  return runBotCheck(req, res)
+}
+
+async function runBotCheck(req: Request, res: Response) {
   try {
     const body = req.body || {}
     const bodyObj = body && typeof body === 'object' ? (body as Record<string, unknown>) : {}
     const receivedBody = String(bodyObj.body ?? bodyObj.message ?? '').slice(0, 120)
-    const { phone, rawSeen } = phoneFromBuilderBotBody(body)
+    const queryPhone =
+      typeof req.query.phone === 'string'
+        ? req.query.phone
+        : typeof req.query.from === 'string'
+          ? req.query.from
+          : undefined
+    const pathPhone = typeof req.params.phone === 'string' ? req.params.phone : undefined
+    const { phone, rawSeen } = phoneFromBuilderBotBody(body, pathPhone ?? queryPhone)
 
     const debug = {
       receivedFrom: rawSeen,
       receivedBody,
       parseOk: !!phone,
       bodyKeys: Object.keys(bodyObj).slice(0, 12),
+      pathPhone: pathPhone ?? '',
+      queryPhone: queryPhone ?? '',
+      rawPayload: JSON.stringify(body).slice(0, 600),
     }
 
     if (!phone) {

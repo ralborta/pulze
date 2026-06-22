@@ -187,7 +187,25 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
  */
 export async function handleBuilderBotWebhook(req: Request, res: Response) {
   try {
-    let event = normalizeBuilderBotPayload(req.body) as BuilderBotMessage & { event: string }
+    const pathPhone = typeof req.params?.phone === 'string' ? req.params.phone : undefined
+    const queryPhone =
+      typeof req.query?.phone === 'string'
+        ? req.query.phone
+        : typeof req.query?.from === 'string'
+          ? req.query.from
+          : undefined
+    let body = req.body
+    if (pathPhone || queryPhone) {
+      const base =
+        body && typeof body === 'object' && !Array.isArray(body)
+          ? (body as Record<string, unknown>)
+          : {}
+      if (!base.from && !base.data) {
+        body = { ...base, from: pathPhone ?? queryPhone }
+      }
+    }
+
+    let event = normalizeBuilderBotPayload(body) as BuilderBotMessage & { event: string }
 
     // Prueba de BuilderBot: si from vino como placeholder (@from) o vacío, usar PULZE_TEST_PHONE para poder probar
     const testPhone = process.env.PULZE_TEST_PHONE?.trim().replace(/^\+/, '')
