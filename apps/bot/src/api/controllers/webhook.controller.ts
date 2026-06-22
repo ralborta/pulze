@@ -5,29 +5,15 @@ import { adaptRoutineForUser } from '../../services/ai/routine-adapter.service'
 import { sendRoutineToWhatsApp } from '../../services/messaging/send-routine-whatsapp'
 import { parseCheckInMessage } from '../../utils/checkin-parser'
 import { isPlaceholder, sanitizePhone } from '../../utils/phone'
+import {
+  REGISTRO_GREETING,
+  SEGUIMIENTO_GREETING,
+  isSimpleGreeting,
+} from '../../utils/bot-greetings'
 import { builderBotClient } from '../../services/builderbot'
 
-/** Respuesta al canal: sin texto generado en PULZE; el copy lo arma BuilderBot. */
+/** Sin copy visible: BuilderBot envía el texto vía messageMapping del JSON. */
 const BB_REPLY = '\u200B'
-
-const SEGUIMIENTO_GREETING =
-  'Hola! Soy PULZE, tu coach de bienestar 🌟 ¿Cómo venís hoy?'
-
-const REGISTRO_GREETING =
-  '¡Hola! Soy PULZE 🌟 Vamos a completar tu registro. ¿Cómo te llamás?'
-
-/** Saludos sueltos: BuilderBot solo dispara Inicio con EVENTS.WELCOME (primer contacto). */
-function isSimpleGreeting(text: string): boolean {
-  const t = text
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .replace(/[!?.¿¡]+$/g, '')
-  return /^(hola|buenas?|buen[oa]s?(?:\s+(?:dias?|tardes?|noches?))?|hey|que\s*tal|hi|hello)$/.test(
-    t
-  )
-}
 
 /** Respuesta corta a "¿Cómo venís hoy?" — no repetir saludo inicial. */
 function isMoodFollowUp(text: string): boolean {
@@ -195,8 +181,9 @@ function normalizeBuilderBotPayload(body: any): BuilderBotMessage & { event: str
 
 /**
  * POST /api/webhooks/builderbot  (alias POST /api/bot/inbound)
- * Pulze persiste datos y devuelve JSON (registered_s, route, nextFlow_s, message).
- * BuilderBot HTTP: avoidResponse ON → solo enruta. WhatsApp lo envía BuilderBot Cloud v2 desde Pulze.
+ * Seguimiento / mensajes con texto: Pulze procesa y devuelve JSON.
+ * WhatsApp lo envía BuilderBot con messageMapping — Pulze NO manda WhatsApp acá.
+ * Inicio (WELCOME) debe usar POST /api/bot/check (patrón Wara).
  */
 export async function handleBuilderBotWebhook(req: Request, res: Response) {
   try {
@@ -372,34 +359,13 @@ function webhookPayload(
   }
 }
 
-/**
- * Entrega WhatsApp vía BuilderBot Cloud v2 (POST /api/v2/{botId}/messages).
- * messageMapping/AGENT en BB falla con LID not found; Cloud v2 sí entrega.
- * Desactivar solo con PULZE_SEND_VIA_BUILDERBOT_API=false.
- */
-function shouldDeliverViaBuilderBotCloud(): boolean {
-  if (process.env.PULZE_SEND_VIA_BUILDERBOT_API === 'false') return false
-  return builderBotClient.canSend()
-}
-
-function shouldSendViaBuilderBotApi(): boolean {
-  return shouldDeliverViaBuilderBotCloud()
-}
-
-/** Envía el texto al usuario por BuilderBot Cloud (no bloquea el HTTP de inbound). */
-function deliverWhatsAppReply(phone: string, message: string | null): void {
-  if (!shouldDeliverViaBuilderBotCloud()) return
-  if (!message?.trim() || message === BB_REPLY || !phone) return
-  void sendReplyViaBuilderBot(phone, message, { force: true })
-}
-
 async function sendReplyViaBuilderBot(
   phone: string,
   message: string | null,
   opts?: { force?: boolean; timeoutMs?: number }
 ): Promise<{ success: boolean; error?: string }> {
   if (!message?.trim() || message === BB_REPLY || !phone) return { success: true }
-  if (!opts?.force && (!shouldSendViaBuilderBotApi() || !builderBotClient.canSend())) {
+  if (!opts?.force && !builderBotClient.canSend()) {
     return { success: true }
   }
   if (opts?.force && !builderBotClient.canSend()) {
@@ -544,7 +510,6 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
     res.json(
       webhookPayload(REGISTRO_GREETING, { flow: 'onboarding', registered: false, nombre: nombreNuevo })
     )
-    deliverWhatsAppReply(phone, REGISTRO_GREETING)
     return
   }
 
@@ -586,7 +551,6 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
         nombre,
       })
     )
-    deliverWhatsAppReply(phone, onboardingReply)
     void (async () => {
       try {
         await prisma.conversation.create({
@@ -691,7 +655,6 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
       route: coachRoute,
     })
   )
-  deliverWhatsAppReply(phone, response)
 
   scheduleAfterInboundResponse({
     userId: user.id,

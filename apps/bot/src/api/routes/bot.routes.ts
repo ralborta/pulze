@@ -6,6 +6,7 @@ import {
   getUserContext,
   getCoachingContext,
   postBotContext,
+  postBotCheck,
   postCoachingContext,
   postCompleteOnboarding,
   getMagicLink,
@@ -33,6 +34,12 @@ router.post('/inbound', handleBuilderBotWebhook)
  * Estado del usuario para ramificar en BuilderBot. Requiere X-API-Key (API_KEY / N8N_API_KEY, cualquiera configurada).
  */
 router.get('/users/:phone/context', requireApiKey, getUserContext)
+
+/**
+ * POST /api/bot/check
+ * Inicio BuilderBot (estilo Wara check): message + nextFlow_s. Requiere X-API-Key.
+ */
+router.post('/check', requireApiKey, postBotCheck)
 
 /**
  * POST /api/bot/context

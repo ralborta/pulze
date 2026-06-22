@@ -6,6 +6,11 @@ import { builderBotClient } from '../../services/builderbot'
 import { sendRoutineToWhatsApp } from '../../services/messaging/send-routine-whatsapp'
 import { buildMagicLink, buildWebappWelcomeMessage } from '../../services/auth/magic-link'
 import { decodePhonePathSegment, isPlaceholder, sanitizePhone } from '../../utils/phone'
+import {
+  REGISTRO_GREETING,
+  SEGUIMIENTO_GREETING,
+  isSimpleGreeting,
+} from '../../utils/bot-greetings'
 
 /**
  * GET /api/bot/health
@@ -34,7 +39,7 @@ export async function getBotHealth(req: Request, res: Response) {
   res.json({
     status: 'ok',
     service: 'pulze-bot-api',
-    deploy: '5ec25d8',
+    deploy: 'check-pending',
     timestamp: new Date().toISOString(),
     whatsappOutbound,
     waApiProbe,
@@ -516,6 +521,64 @@ export async function getUserContext(req: Request, res: Response) {
   } catch (error: any) {
     console.error('Error getUserContext:', error)
     return res.status(500).json({ error: 'Error al obtener contexto del usuario' })
+  }
+}
+
+/**
+ * POST /api/bot/check
+ * Patrón Wara (customer-registered/check): Inicio en BuilderBot.
+ * Devuelve { message, nextFlow_s, registered_s } — BB envía WhatsApp con messageMapping.
+ * Sin side-effects pesados; Seguimiento usa POST /api/bot/inbound.
+ * Body: { "from": "{from}", "body": "{body}", "name": "{name}" }
+ */
+export async function postBotCheck(req: Request, res: Response) {
+  try {
+    const body = req.body || {}
+    const text = String(body.body ?? body.message ?? '').trim()
+    const { phone, rawSeen } = phoneFromBuilderBotBody(body)
+
+    if (!phone) {
+      return res.json({
+        message: REGISTRO_GREETING,
+        registered: false,
+        registered_s: 'false',
+        route: 'registro',
+        nextFlow_s: 'registro',
+        nombre: '',
+        receivedFrom: rawSeen,
+      })
+    }
+
+    const user = await userService.findByPhone(phone)
+    const userExists = !!user
+    const onboardingComplete = !!user?.onboardingComplete
+    const registered = onboardingComplete
+    const registered_s = registered ? 'true' : 'false'
+    const route = registered ? 'seguimiento' : 'registro'
+    const nombre =
+      user?.name && user.name !== 'pendiente' ? user.name : ''
+
+    const message =
+      route === 'registro'
+        ? REGISTRO_GREETING
+        : isSimpleGreeting(text) || !text
+          ? SEGUIMIENTO_GREETING
+          : SEGUIMIENTO_GREETING
+
+    return res.json({
+      message,
+      registered,
+      registered_s,
+      route,
+      nextFlow_s: route,
+      userExists,
+      onboardingComplete,
+      nombre,
+      phone,
+    })
+  } catch (error: unknown) {
+    console.error('Error postBotCheck:', error)
+    return res.status(500).json({ error: 'Error en check de registro' })
   }
 }
 
