@@ -34,7 +34,7 @@ export async function getBotHealth(req: Request, res: Response) {
   res.json({
     status: 'ok',
     service: 'pulze-bot-api',
-    deploy: 'check-only',
+    deploy: 'check-debug',
     timestamp: new Date().toISOString(),
     whatsappOutbound,
     waApiProbe,
@@ -75,7 +75,18 @@ function isValidPhonePathSegment(s: string): boolean {
 function phoneFromBuilderBotBody(body: unknown, pathOrQueryPhone?: string): { phone: string; rawSeen: string } {
   const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>
   const data = (b.data && typeof b.data === 'object' ? b.data : {}) as Record<string, unknown>
-  const candidates: unknown[] = [b.from, b.phone, data.from, data.phone, pathOrQueryPhone]
+  const candidates: unknown[] = [
+    b.from,
+    b.phone,
+    b.number,
+    b.sender,
+    b.wa_id,
+    data.from,
+    data.phone,
+    data.sender,
+    data.wa_id,
+    pathOrQueryPhone,
+  ]
   let rawSeen = ''
   for (const c of candidates) {
     if (c == null || c === '') continue
@@ -528,9 +539,19 @@ export async function getUserContext(req: Request, res: Response) {
 export async function postBotCheck(req: Request, res: Response) {
   try {
     const body = req.body || {}
+    const bodyObj = body && typeof body === 'object' ? (body as Record<string, unknown>) : {}
+    const receivedBody = String(bodyObj.body ?? bodyObj.message ?? '').slice(0, 120)
     const { phone, rawSeen } = phoneFromBuilderBotBody(body)
 
+    const debug = {
+      receivedFrom: rawSeen,
+      receivedBody,
+      parseOk: !!phone,
+      bodyKeys: Object.keys(bodyObj).slice(0, 12),
+    }
+
     if (!phone) {
+      console.warn('⚠️ /check sin teléfono válido:', debug)
       return res.json({
         registered: false,
         registered_s: 'false',
@@ -540,7 +561,7 @@ export async function postBotCheck(req: Request, res: Response) {
         onboardingComplete: false,
         nombre: '',
         phone: '',
-        receivedFrom: rawSeen,
+        ...debug,
       })
     }
 
@@ -562,6 +583,7 @@ export async function postBotCheck(req: Request, res: Response) {
       onboardingComplete,
       nombre,
       phone,
+      ...debug,
     })
   } catch (error: unknown) {
     console.error('Error postBotCheck:', error)
