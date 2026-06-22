@@ -431,8 +431,9 @@ async function handleIncomingMessage(event: BuilderBotMessage, res: Response, re
   if (!phone) {
     const rawFrom = event.from ?? req.body?.from ?? req.body?.data?.from
     console.warn('⚠️ Webhook sin "from" válido (posiblemente @from/{from} sin resolver):', rawFrom)
+    const fallbackMessage = text ? SEGUIMIENTO_GREETING : BB_REPLY
     return res.status(200).json(
-      webhookPayload(BB_REPLY, {
+      webhookPayload(fallbackMessage, {
         flow: 'onboarding',
         registered: false,
         route: 'registro',
